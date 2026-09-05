@@ -47,7 +47,8 @@ export function evaluateReferenceRange(
     lower.includes('not provided') ||
     lower.includes('not established') ||
     lower.includes('unspecified') ||
-    lower.includes('no ref')
+    lower.includes('no ref') ||
+    /^\.[0-9]+[a-z²³]/i.test(trimmed)
   ) {
     return {
       status: 'NOT_PROVIDED_IN_SOURCE',

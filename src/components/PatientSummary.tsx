@@ -174,8 +174,8 @@ export const PatientSummary: React.FC<PatientSummaryProps> = ({ report, patient 
         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 p-3 rounded-lg text-xs text-amber-900">
           <Info className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
           <span>
-            <strong>Important:</strong> This summary is for information and discussion purposes only.
-            It does <strong>not</strong> provide a diagnosis, treatment recommendation, or any medical advice.
+            <strong>Important (Informational / Non-Diagnostic):</strong> This summary is generated deterministically from source-provided values using the local extraction engine (not AI/LLM).
+            It is for informational and discussion purposes only. It does <strong>not</strong> provide a diagnosis, treatment recommendation, or any medical advice.
             Always discuss your results with a qualified healthcare professional.
           </span>
         </div>
@@ -189,7 +189,7 @@ export const PatientSummary: React.FC<PatientSummaryProps> = ({ report, patient 
             </strong>
           </p>
           <p>
-            The report dated <strong>{report.reportDate}</strong> from{' '}
+            The report {report.title ? <span>titled <strong>"{report.title}"</strong> ({report.isDemoData ? 'Synthetic Benchmark' : 'User-Provided Report'}) </span> : null}dated <strong>{report.reportDate}</strong> from{' '}
             <strong>{report.facility}</strong> contains{' '}
             <strong>{summary.total}</strong> laboratory{' '}
             {pluralise(summary.total, 'measurement', 'measurements')}.

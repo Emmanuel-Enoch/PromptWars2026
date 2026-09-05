@@ -30,8 +30,14 @@ function extractReportMetadata(lines: string[]) {
   let reportDate = new Date().toISOString().split('T')[0];
 
   for (const line of lines.slice(0, 20)) {
-    // Facility detection
-    if (/LABORATOR|HOSPITAL|CLINIC|DIAGNOSTIC|HEALTH/i.test(line) && !line.startsWith('=') && !line.startsWith('-')) {
+    // Facility detection (prefer first matching header line; exclude section titles like CLINICAL NOTES)
+    if (
+      facility === 'Clinical Laboratory Facility' &&
+      /LABORATOR|HOSPITAL|CLINIC|DIAGNOSTIC|HEALTH|PATHOLOG|CENTER|MEDICAL/i.test(line) &&
+      !line.startsWith('=') &&
+      !line.startsWith('-') &&
+      !/^(CLINICAL\s+NOTE|NOTE|OBSERVATION|TEST\s+NAME|PATIENT|ORDERING|PHYSICIAN)/i.test(line.trim())
+    ) {
       const cleaned = line.replace(/^[=\-\s*]+|[=\-\s*]+$/g, '').trim();
       if (cleaned.length > 5 && cleaned.length < 80) {
         facility = cleaned;
@@ -76,25 +82,38 @@ function parseReportLine(line: string): ExtractedRawResult | null {
   // e.g. "Creatinine, Serum             1.42     mg/dL      0.60 - 1.20        HIGH"
   // e.g. "Hemoglobin A1c                8.1      %          < 5.7"
   // e.g. "eGFR (Estimated GFR)          54       mL/min     [None provided by ordering lab]"
+  // e.g. "eGFR                          82       mL/min/1.73m²"
   // e.g. "Fasting Insulin               14.5     uIU/mL"
   
-  // Try Pattern A: TestName ... Number ... Unit ... ReferenceRange
-  const tabularRegex = /^([A-Za-z0-9\s,/\-()'.+]+?)\s{2,}([<>]?[0-9.]+)\s+([A-Za-z0-9/%^]+(?:\/[A-Za-z0-9.]+)?)\s*(.*?)$/;
-  const tabMatch = trimmed.match(tabularRegex);
+  // Unit pattern: accommodates compound units with embedded numbers/decimals/superscripts (e.g. mL/min/1.73m², x10^3/uL)
+  const unitPattern = '([A-Za-z0-9/%^*.²³µμ\\-]+(?:\\s+m[²2])?)';
+
+  // Try standard column alignment (\s{2,}) first, then single space (\s+)
+  const tabularRegex = new RegExp(`^([A-Za-z0-9\\s,/\\-()'.+]+?)\\s{2,}([<>]?[0-9.]+)\\s+${unitPattern}(?:[\\t ]+(.*?))?$`);
+  const singleSpaceRegex = new RegExp(`^([A-Za-z0-9\\s,/\\-()'.+]+?)\\s+([<>]?[0-9.]+)\\s+${unitPattern}(?:[\\t ]+(.*?))?$`);
+  const tabMatch = trimmed.match(tabularRegex) || trimmed.match(singleSpaceRegex);
 
   if (tabMatch) {
     const rawName = tabMatch[1].trim();
     const rawVal = tabMatch[2].trim();
     const rawUnit = tabMatch[3].trim();
-    let rawRange: string | null = tabMatch[4].trim();
+    let rawRange: string | null = tabMatch[4] ? tabMatch[4].trim() : null;
 
     // Clean up trailing flags (HIGH, LOW, NORMAL, ABNORMAL, CRITICAL, *) from reference range column if present
     if (rawRange) {
       rawRange = rawRange.replace(/\s+(HIGH|LOW|NORMAL|ABNORMAL|CRITICAL|\*)\s*$/i, '').trim();
+      if (/^(HIGH|LOW|NORMAL|ABNORMAL|CRITICAL|\*)$/i.test(rawRange)) {
+        rawRange = null;
+      }
       if (rawRange === '' || rawRange === '-' || rawRange === '--') {
         rawRange = null;
       }
     } else {
+      rawRange = null;
+    }
+
+    // Safety check: a reference range must never be a fragmented unit snippet like ".73m²"
+    if (rawRange && /^\.[0-9]+[a-z²³]/i.test(rawRange)) {
       rawRange = null;
     }
 
@@ -114,7 +133,7 @@ function parseReportLine(line: string): ExtractedRawResult | null {
   // e.g. "Potassium: 3.2 mmol/L (Reference: 3.5 - 5.0)"
   // e.g. "Calcium: 9.3 mg/dL [8.6 - 10.2]"
   // NOTE: metadata lines are already filtered above so "Report Date: ..." never reaches here
-  const kvRegex = /^([A-Za-z0-9\s,/\-()'.+]+?):\s*([<>]?[0-9.]+)\s*([A-Za-z0-9/%^]+(?:\/[A-Za-z0-9.]+)?)?\s*(?:\((?:Ref|Reference)?\s*:?\s*([^)]+)\)|\[([^\]]+)\])?/i;
+  const kvRegex = new RegExp(`^([A-Za-z0-9\\s,/\\-()'.+]+?):\\s*([<>]?[0-9.]+)\\s*(?:${unitPattern})?\\s*(?:\\((?:Ref|Reference)?\\s*:?\\s*([^)]+)\\)|\\[([^\\]]+)\\])?`, 'i');
   const kvMatch = trimmed.match(kvRegex);
 
   if (kvMatch) {
@@ -166,7 +185,8 @@ function parseReportLine(line: string): ExtractedRawResult | null {
 export function parseMedicalReport(
   rawReportText: string,
   patientId: string,
-  isDemoData: boolean = false
+  isDemoData: boolean = false,
+  customTitle?: string
 ): MedicalReport {
   const lines = rawReportText.split(/\r?\n/);
   const { facility, reportDate } = extractReportMetadata(lines);
@@ -230,7 +250,7 @@ export function parseMedicalReport(
   return {
     id: `rep-${Date.now()}`,
     patientId,
-    title: 'Laboratory Findings & Clinical Diagnostic Panel',
+    title: customTitle?.trim() || 'Laboratory Findings & Clinical Diagnostic Panel',
     facility,
     reportDate,
     rawText: rawReportText,

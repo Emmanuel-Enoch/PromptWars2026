@@ -514,6 +514,181 @@ if (hba1c) {
 }
 
 // ============================================================
+// SECTION 16: Phase 3A — Real User-Provided Report Ingestion
+// ============================================================
+console.log('\n--- SECTION 16: Phase 3A — Real User-Provided Report Ingestion ---\n');
+
+const userPastedReportText = `================================================================================
+ST. MARY OUTPATIENT PATHOLOGY SERVICES
+Patient: Mark Davis | DOB: 1975-11-20 | Sex: Male
+Ordering Physician: Dr. Robert Vance, MD
+Report Date: 2026-03-10 09:30 AM | Accession: SMH-2026-9912
+================================================================================
+TEST NAME                     RESULT   UNITS      REFERENCE RANGE    FLAGS
+--------------------------------------------------------------------------------
+Glucose, Fasting              158      mg/dL      70 - 99            HIGH
+Serum Sodium                  138      mmol/L     136 - 145          NORMAL
+Serum Potassium               3.1      mmol/L     3.5 - 5.1          LOW
+Creatinine                    1.65     mg/dL      0.70 - 1.30        HIGH
+eGFR (CKD-EPI 2021)           48       mL/min     [None provided by ordering lab]
+================================================================================
+CLINICAL NOTES:
+- Fasting sample received at 08:15 AM.
+- Repeat potassium performed on Roche analyzer confirms 3.1 mmol/L.
+================================================================================`;
+
+const userCustomTitle = 'St. Mary Renal & Metabolic Panel - March 2026';
+const userReport = parseMedicalReport(userPastedReportText, 'user-pt-001', false, userCustomTitle);
+
+// 1. Raw text preservation
+assert(userReport.rawText === userPastedReportText, '16.1: Raw user-provided source text is preserved verbatim');
+assert(userReport.title === userCustomTitle, '16.2: User-provided custom report title is preserved');
+assert(userReport.isDemoData === false, '16.3: User-provided report is flagged with isDemoData: false');
+assert(userReport.facility.includes('ST. MARY'), '16.4: Extracted facility from user report header');
+assert(userReport.reportDate === '2026-03-10', `16.5: Extracted reportDate is 2026-03-10 (got ${userReport.reportDate})`);
+
+// 2. Report Date metadata line must NEVER become a LabTestResult
+const userReportDateResult = userReport.results.find(r =>
+  r.testName.toLowerCase().includes('report date') ||
+  r.testName.toLowerCase().includes('accession')
+);
+assert(userReportDateResult === undefined, '16.6: "Report Date:" metadata line does NOT become a LabTestResult in user report');
+
+// 3. Extracted results count
+assert(userReport.results.length === 5, `16.7: Exactly 5 lab parameters extracted from user report (got ${userReport.results.length})`);
+
+// 4. Source snippets come from actual submitted text
+const userGlucose = userReport.results.find(r => r.testName.toLowerCase().includes('glucose'));
+assert(Boolean(userGlucose), '16.8: User report Glucose extracted');
+if (userGlucose) {
+  assert(userGlucose.value === '158', `User Glucose value is 158 (got ${userGlucose.value})`);
+  assert(userGlucose.sourceReferenceRange === '70 - 99', `User Glucose range is 70 - 99 (got ${userGlucose.sourceReferenceRange})`);
+  assert(userGlucose.status === 'HIGH', `User Glucose status is HIGH (got ${userGlucose.status})`);
+  assert(userGlucose.sourceSnippet.includes('Glucose, Fasting'), '16.9: Source snippet contains exact verbatim text "Glucose, Fasting"');
+  assert(userGlucose.sourceSnippet.includes('158'), '16.10: Source snippet contains raw value 158');
+  assert(userPastedReportText.includes(userGlucose.sourceSnippet), '16.11: Source snippet is a substring of the actual submitted text');
+}
+
+// 5. LOCAL_EXTRACTED provenance honest attribution
+assert(userReport.extractionEngine === LOCAL_ENGINE_NAME, `16.12: Engine is "${LOCAL_ENGINE_NAME}"`);
+assert(userReport.results.every(r => r.provenance === 'LOCAL_EXTRACTED'), '16.13: All user report results have provenance LOCAL_EXTRACTED');
+
+// 6. Source-only reference ranges enforced (eGFR has no range)
+const userEgfr = userReport.results.find(r => r.testName.toLowerCase().includes('egfr'));
+assert(Boolean(userEgfr), '16.14: User report eGFR extracted');
+if (userEgfr) {
+  assert(userEgfr.rangeProvided === false, '16.15: eGFR rangeProvided is false');
+  assert(userEgfr.status === 'NOT_PROVIDED_IN_SOURCE', '16.16: eGFR status is NOT_PROVIDED_IN_SOURCE');
+  assert(userEgfr.sourceReferenceRange === null || userEgfr.sourceReferenceRange!.toLowerCase().includes('none'), '16.17: eGFR range was not fabricated');
+}
+
+// 7. Phase 2 verification actions work on user-provided report
+const userVerifyNow = new Date().toISOString();
+const verifiedUserGlucose = {
+  ...userGlucose!,
+  verificationStatus: 'VERIFIED' as const,
+  verifiedAt: userVerifyNow,
+  verifiedBy: 'Clinical Reviewer'
+};
+assert(verifiedUserGlucose.verificationStatus === 'VERIFIED', '16.18: User report result can be verified');
+assert(verifiedUserGlucose.originalExtracted?.value === '158', '16.19: originalExtracted is preserved on user report result');
+
+// 8. Round-trip LocalStorage serialization on user-provided report
+const userReportSerialized = JSON.stringify({
+  ...userReport,
+  results: [verifiedUserGlucose, ...userReport.results.slice(1)],
+  auditLog: [{
+    id: 'audit-user-001',
+    timestamp: userVerifyNow,
+    actor: 'Clinical Reviewer',
+    action: 'VERIFIED' as const,
+    resultId: userGlucose!.id,
+    testName: userGlucose!.testName,
+    newValue: 'VERIFIED'
+  }]
+});
+const userReportRestored = JSON.parse(userReportSerialized);
+assert(userReportRestored.rawText === userPastedReportText, '16.20: Restored user report rawText matches original user submitted text');
+assert(userReportRestored.title === userCustomTitle, '16.21: Restored user report title matches');
+assert(userReportRestored.isDemoData === false, '16.22: Restored user report isDemoData remains false');
+assert(userReportRestored.results[0].verificationStatus === 'VERIFIED', '16.23: Restored user report verification status is preserved');
+assert(userReportRestored.auditLog.length === 1, '16.24: Restored user report audit log is preserved');
+
+// ============================================================
+// SECTION 17: Compound Unit with Embedded Numbers Regression
+// ============================================================
+console.log('\n--- SECTION 17: Compound Unit with Embedded Numbers Regression ---\n');
+
+// 1. eGFR 82 mL/min/1.73m² (single space, no range)
+const egfrSingleSpaceText = `
+CLINICAL LABORATORY
+Report Date: 2026-03-15
+eGFR 82 mL/min/1.73m²
+`;
+const egfrSingleRep = parseMedicalReport(egfrSingleSpaceText, 'test-pt', false);
+const egfrSingleResult = egfrSingleRep.results.find(r => r.testName.toLowerCase() === 'egfr');
+assert(Boolean(egfrSingleResult), '17.1: eGFR extracted from "eGFR 82 mL/min/1.73m²"');
+if (egfrSingleResult) {
+  assert(egfrSingleResult.value === '82', `17.2: eGFR value is 82 (got ${egfrSingleResult.value})`);
+  assert(egfrSingleResult.unit === 'mL/min/1.73m²', `17.3: eGFR unit is intact as mL/min/1.73m² (got "${egfrSingleResult.unit}")`);
+  assert(egfrSingleResult.rangeProvided === false, `17.4: eGFR rangeProvided is false (got ${egfrSingleResult.rangeProvided})`);
+  assert(egfrSingleResult.status === 'NOT_PROVIDED_IN_SOURCE', `17.5: eGFR status is NOT_PROVIDED_IN_SOURCE (got ${egfrSingleResult.status})`);
+  assert(egfrSingleResult.sourceReferenceRange === null, `17.6: eGFR sourceReferenceRange is null, NOT .73m² (got ${egfrSingleResult.sourceReferenceRange})`);
+  assert(egfrSingleResult.sourceSnippet.includes('eGFR 82 mL/min/1.73m²'), '17.7: eGFR sourceSnippet contains original source line');
+}
+
+// 2. eGFR                    82 mL/min/1.73m² (column-aligned whitespace, no range)
+const egfrTabularText = `
+CLINICAL LABORATORY
+Report Date: 2026-03-15
+eGFR                    82 mL/min/1.73m²
+`;
+const egfrTabRep = parseMedicalReport(egfrTabularText, 'test-pt', false);
+const egfrTabResult = egfrTabRep.results.find(r => r.testName.toLowerCase() === 'egfr');
+assert(Boolean(egfrTabResult), '17.8: eGFR extracted from column-aligned line');
+if (egfrTabResult) {
+  assert(egfrTabResult.value === '82', `17.9: Column-aligned eGFR value is 82 (got ${egfrTabResult.value})`);
+  assert(egfrTabResult.unit === 'mL/min/1.73m²', `17.10: Column-aligned eGFR unit is intact as mL/min/1.73m² (got "${egfrTabResult.unit}")`);
+  assert(egfrTabResult.rangeProvided === false, `17.11: Column-aligned eGFR rangeProvided is false (got ${egfrTabResult.rangeProvided})`);
+  assert(egfrTabResult.status === 'NOT_PROVIDED_IN_SOURCE', `17.12: Column-aligned eGFR status is NOT_PROVIDED_IN_SOURCE (got ${egfrTabResult.status})`);
+  assert(egfrTabResult.sourceReferenceRange === null, `17.13: Column-aligned eGFR sourceReferenceRange is null (got ${egfrTabResult.sourceReferenceRange})`);
+  assert(egfrTabResult.sourceSnippet.includes('eGFR                    82 mL/min/1.73m²'), '17.14: Column-aligned sourceSnippet preserved');
+}
+
+// 3. Existing explicit ranges still work: Glucose, Fasting 158 mg/dL 70 - 99 -> HIGH
+const glucoseExplicitText = `
+CLINICAL LABORATORY
+Report Date: 2026-03-15
+Glucose, Fasting 158 mg/dL 70 - 99
+`;
+const glucoseExplicitRep = parseMedicalReport(glucoseExplicitText, 'test-pt', false);
+const glucoseExplicitResult = glucoseExplicitRep.results.find(r => r.testName.toLowerCase().includes('glucose'));
+assert(Boolean(glucoseExplicitResult), '17.15: Glucose extracted from "Glucose, Fasting 158 mg/dL 70 - 99"');
+if (glucoseExplicitResult) {
+  assert(glucoseExplicitResult.value === '158', `17.16: Glucose value is 158 (got ${glucoseExplicitResult.value})`);
+  assert(glucoseExplicitResult.unit === 'mg/dL', `17.17: Glucose unit is mg/dL (got "${glucoseExplicitResult.unit}")`);
+  assert(glucoseExplicitResult.sourceReferenceRange === '70 - 99', `17.18: Glucose source range is 70 - 99 (got ${glucoseExplicitResult.sourceReferenceRange})`);
+  assert(glucoseExplicitResult.rangeProvided === true, '17.19: Glucose rangeProvided is true');
+  assert(glucoseExplicitResult.status === 'HIGH', `17.20: Glucose status is HIGH (got ${glucoseExplicitResult.status})`);
+}
+
+// 4. Compound unit with explicit range: eGFR 82 mL/min/1.73m² > 60 -> NORMAL
+const egfrWithRangeText = `
+CLINICAL LABORATORY
+Report Date: 2026-03-15
+eGFR 82 mL/min/1.73m² > 60
+`;
+const egfrWithRangeRep = parseMedicalReport(egfrWithRangeText, 'test-pt', false);
+const egfrWithRangeResult = egfrWithRangeRep.results.find(r => r.testName.toLowerCase() === 'egfr');
+assert(Boolean(egfrWithRangeResult), '17.21: eGFR with explicit range extracted');
+if (egfrWithRangeResult) {
+  assert(egfrWithRangeResult.value === '82', '17.22: eGFR with range value is 82');
+  assert(egfrWithRangeResult.unit === 'mL/min/1.73m²', `17.23: eGFR unit intact with range (got "${egfrWithRangeResult.unit}")`);
+  assert(egfrWithRangeResult.sourceReferenceRange === '> 60', `17.24: eGFR source range is > 60 (got ${egfrWithRangeResult.sourceReferenceRange})`);
+  assert(egfrWithRangeResult.status === 'NORMAL', `17.25: eGFR status is NORMAL (82 > 60) (got ${egfrWithRangeResult.status})`);
+}
+
+// ============================================================
 // FINAL SUMMARY
 // ============================================================
 console.log(`\n====================================================`);

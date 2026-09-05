@@ -68,18 +68,25 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
     <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
       {/* Report Summary Card Header */}
       <div className="p-6 bg-slate-50/80 border-b border-slate-200">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 mb-3">
           <div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
               <h2 className="text-base font-bold text-slate-900">
-                Structured Laboratory Findings
+                {report.title || 'Structured Laboratory Findings'}
               </h2>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-semibold border border-teal-200">
                 {report.results.length} Parameters
               </span>
+              <span className={`text-[11px] px-2 py-0.5 rounded-full font-semibold border ${
+                report.isDemoData
+                  ? 'bg-slate-100 text-slate-700 border-slate-300'
+                  : 'bg-teal-50 text-teal-800 border-teal-300'
+              }`}>
+                {report.isDemoData ? 'Source: Synthetic Benchmark' : 'Source: USER_PROVIDED Report'}
+              </span>
             </div>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Source: <span className="font-semibold text-slate-700">{report.facility}</span> • 
+            <p className="text-xs text-slate-500 mt-1">
+              Facility: <span className="font-semibold text-slate-700">{report.facility}</span> • 
               Report Date: <span className="font-semibold text-slate-700">{report.reportDate}</span>
             </p>
           </div>
@@ -87,9 +94,29 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
               <ShieldCheck className="h-3.5 w-3.5 text-teal-600" />
-              <span>Provenance: <strong>{report.extractionEngine}</strong></span>
+              <span>Provenance: <strong>{report.extractionEngine}</strong> (LOCAL_EXTRACTED)</span>
             </span>
           </div>
+        </div>
+
+        {/* Evidence Pipeline Flow */}
+        <div className="flex items-center gap-1.5 text-[11px] text-slate-600 bg-white px-3 py-1.5 rounded-md border border-slate-200 mb-3 overflow-x-auto">
+          <span className="font-bold text-slate-800 shrink-0">Pipeline:</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
+            1. {report.isDemoData ? 'Synthetic Benchmark Source' : 'USER_PROVIDED Source'}
+          </span>
+          <span className="text-slate-400">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-800 font-medium whitespace-nowrap">
+            2. Deterministic Local Parser
+          </span>
+          <span className="text-slate-400">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-slate-100 text-slate-700 font-medium whitespace-nowrap">
+            3. Source-Only Range Evaluation
+          </span>
+          <span className="text-slate-400">→</span>
+          <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 font-medium whitespace-nowrap">
+            4. Human Review & Audit
+          </span>
         </div>
 
         {/* Clinical Summary Cards */}

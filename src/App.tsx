@@ -92,7 +92,7 @@ export const App: React.FC = () => {
   };
 
   // Process Report
-  const handleProcessReport = (rawText: string, isDemoData: boolean) => {
+  const handleProcessReport = (rawText: string, isDemoData: boolean, customTitle?: string) => {
     setIsProcessing(true);
     setShowSummary(false);
 
@@ -100,7 +100,7 @@ export const App: React.FC = () => {
     setTimeout(() => {
       try {
         const patientId = patient?.id || 'unassigned-patient';
-        const parsedReport = parseMedicalReport(rawText, patientId, isDemoData);
+        const parsedReport = parseMedicalReport(rawText, patientId, isDemoData, customTitle);
         setReport(parsedReport);
       } catch (err) {
         console.error('Report parsing error:', err);
@@ -120,7 +120,7 @@ export const App: React.FC = () => {
     setShowSummary(false);
 
     setTimeout(() => {
-      const parsed = parseMedicalReport(demoRep.rawText, demoPt.id, true);
+      const parsed = parseMedicalReport(demoRep.rawText, demoPt.id, true, demoRep.name);
       setReport(parsed);
       setIsProcessing(false);
     }, 250);

@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { FileText, Upload, Sparkles, ArrowRight, Loader2, RefreshCw, AlertCircle } from 'lucide-react';
+import { FileText, Upload, Sparkles, ArrowRight, Loader2, RefreshCw, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { DEMO_REPORTS, type DemoReportDefinition } from '../data/demoData';
 
 interface ReportIngestionProps {
-  onProcessReport: (rawText: string, isDemoData: boolean) => void;
+  onProcessReport: (rawText: string, isDemoData: boolean, customTitle?: string) => void;
   isProcessing: boolean;
 }
 
@@ -14,12 +14,14 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
   const [activeTab, setActiveTab] = useState<'preset' | 'paste' | 'upload'>('preset');
   const [selectedDemoId, setSelectedDemoId] = useState<string>(DEMO_REPORTS[0].id);
   const [pastedText, setPastedText] = useState<string>('');
+  const [reportTitle, setReportTitle] = useState<string>('');
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSelectDemo = (report: DemoReportDefinition) => {
     setSelectedDemoId(report.id);
     setPastedText(report.rawText);
+    setReportTitle(report.name);
     setErrorMessage(null);
   };
 
@@ -39,6 +41,10 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
       if (content) {
         setPastedText(content);
         setUploadedFileName(file.name);
+        if (!reportTitle.trim()) {
+          const cleanName = file.name.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ');
+          setReportTitle(cleanName);
+        }
         setErrorMessage(null);
       }
     };
@@ -54,6 +60,7 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
 
     let textToProcess = '';
     let isDemo = false;
+    let titleToUse = reportTitle.trim();
 
     if (activeTab === 'preset') {
       const demo = DEMO_REPORTS.find(r => r.id === selectedDemoId);
@@ -63,9 +70,15 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
       }
       textToProcess = demo.rawText;
       isDemo = true;
+      titleToUse = demo.name;
     } else {
       textToProcess = pastedText.trim();
       isDemo = false;
+      if (!titleToUse) {
+        titleToUse = activeTab === 'upload' && uploadedFileName
+          ? uploadedFileName
+          : 'User-Provided Clinical Report';
+      }
     }
 
     if (!textToProcess) {
@@ -73,7 +86,7 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
       return;
     }
 
-    onProcessReport(textToProcess, isDemo);
+    onProcessReport(textToProcess, isDemo, titleToUse);
   };
 
   return (
@@ -87,6 +100,26 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
             Local Deterministic Extraction Engine
           </span>
         </div>
+      </div>
+
+      {/* Evidence Pipeline Flow Banner */}
+      <div className="bg-slate-100/80 px-6 py-2.5 border-b border-slate-200 text-[11px] text-slate-600 flex items-center gap-2 flex-wrap">
+        <span className="font-bold text-slate-800">Evidence Chain:</span>
+        <span className="font-semibold text-teal-800 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded">
+          1. {activeTab === 'preset' ? 'Synthetic Benchmark Source' : 'USER-PROVIDED Source Report'}
+        </span>
+        <span className="text-slate-400">→</span>
+        <span className="font-semibold text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded">
+          2. Local Deterministic Parser
+        </span>
+        <span className="text-slate-400">→</span>
+        <span className="font-semibold text-slate-800 bg-white border border-slate-200 px-2 py-0.5 rounded">
+          3. Source-Only Range Evaluation
+        </span>
+        <span className="text-slate-400">→</span>
+        <span className="font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+          4. Human Verification & Audit
+        </span>
       </div>
 
       {/* Tabs */}
@@ -127,7 +160,7 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
           }`}
         >
           <Upload className="h-3.5 w-3.5" />
-          <span>Upload Text File</span>
+          <span>Upload Text File (.txt, .csv)</span>
         </button>
       </div>
 
@@ -165,7 +198,7 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
                       </span>
                       {isSelected && (
                         <span className="text-[11px] font-semibold text-teal-700 flex items-center gap-1">
-                          ✓ Selected
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Selected
                         </span>
                       )}
                     </div>
@@ -198,48 +231,93 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
 
         {/* Tab 2: Paste Custom Report Text */}
         {activeTab === 'paste' && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-800">
-                Paste Laboratory or Clinical Document Text:
-              </label>
-              <button
-                type="button"
-                onClick={() => setPastedText('')}
-                className="text-[11px] text-slate-500 hover:text-slate-800"
-              >
-                Clear Text
-              </button>
+          <div className="space-y-3">
+            {/* Provenance Banner */}
+            <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-50/80 border border-teal-200 px-3 py-2 rounded-md">
+              <span>
+                <strong>Attribution:</strong> This report will be registered as <strong>USER_PROVIDED</strong> source content.
+              </span>
+              <span className="text-slate-500">Engine: Local deterministic parser</span>
             </div>
-            <textarea
-              rows={9}
-              value={pastedText}
-              onChange={e => setPastedText(e.target.value)}
-              placeholder={`Example text format:
+
+            {/* Report Title */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-800 mb-1">
+                Report Title / Name (Optional):
+              </label>
+              <input
+                type="text"
+                value={reportTitle}
+                onChange={e => setReportTitle(e.target.value)}
+                placeholder="e.g. Outpatient Metabolic Panel, Central Hospital"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden"
+              />
+            </div>
+
+            {/* Text Area */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-semibold text-slate-800">
+                  Paste Laboratory or Clinical Document Text:
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setPastedText('')}
+                  className="text-[11px] text-slate-500 hover:text-slate-800 font-medium"
+                >
+                  Clear Text
+                </button>
+              </div>
+              <textarea
+                rows={9}
+                value={pastedText}
+                onChange={e => setPastedText(e.target.value)}
+                placeholder={`Example text format:
 METRO CLINICAL LAB
 Date: 2026-03-01
 Glucose, Serum        142   mg/dL   70 - 99
 Potassium             3.2   mmol/L  3.5 - 5.0
 Creatinine            1.4   mg/dL   0.6 - 1.2
 eGFR                  54    mL/min`}
-              className="w-full text-xs font-mono p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden leading-relaxed"
-            />
-            <p className="text-[11px] text-slate-500">
-              The local parser handles standard whitespace tables, key-value colon lines, and pipe-delimited outputs.
-            </p>
+                className="w-full text-xs font-mono p-3 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden leading-relaxed"
+              />
+              <p className="text-[11px] text-slate-500">
+                The local parser handles standard whitespace tables, key-value colon lines, and pipe-delimited outputs. Exact source snippets are preserved verbatim.
+              </p>
+            </div>
           </div>
         )}
 
         {/* Tab 3: Upload Text File */}
         {activeTab === 'upload' && (
           <div className="space-y-3">
-            <label className="block text-xs font-semibold text-slate-800">
-              Upload Plain Text Lab Report (.txt, .csv, .log):
-            </label>
+            {/* Provenance Banner */}
+            <div className="flex items-center justify-between text-[11px] text-teal-900 bg-teal-50/80 border border-teal-200 px-3 py-2 rounded-md">
+              <span>
+                <strong>Attribution:</strong> Uploaded file contents will be registered as <strong>USER_PROVIDED</strong> source content.
+              </span>
+              <span className="text-slate-500">Raw text preserved unaltered</span>
+            </div>
+
+            {/* Report Title */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-800 mb-1">
+                Report Title / Name (Optional):
+              </label>
+              <input
+                type="text"
+                value={reportTitle}
+                onChange={e => setReportTitle(e.target.value)}
+                placeholder="e.g. Lab_Results_March_2026"
+                className="w-full text-xs px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden"
+              />
+            </div>
+
+            {/* File drop area */}
             <div className="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-lg p-6 text-center bg-slate-50/50 hover:bg-slate-50 transition-colors">
               <Upload className="mx-auto h-8 w-8 text-slate-400 mb-2" />
               <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-teal-700 text-white text-xs font-medium rounded-md hover:bg-teal-800 transition-colors">
-                <span>Browse Local File</span>
+                <span>Browse Local File (.txt, .csv, .log)</span>
                 <input
                   type="file"
                   accept=".txt,.csv,.log,.text"
@@ -259,7 +337,7 @@ eGFR                  54    mL/min`}
 
             {pastedText && (
               <div className="mt-2">
-                <span className="text-xs font-semibold text-slate-700 block mb-1">File Contents:</span>
+                <span className="text-xs font-semibold text-slate-700 block mb-1">File Contents Preview:</span>
                 <textarea
                   rows={6}
                   value={pastedText}
