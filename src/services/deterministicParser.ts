@@ -17,13 +17,19 @@ interface ExtractedRawResult {
 }
 
 /**
+ * Report-metadata line patterns that must NEVER become LabTestResults.
+ * A line is metadata if it matches one of these patterns.
+ */
+const METADATA_LINE_REGEX = /^(?:Report\s*Date|Specimen\s*Date|Collection\s*Date|Date\s*Collected|Order\s*Date|Patient|Ordering|Physician|DOB|Date\s+of\s+Birth|Requisition|Order\s*#|Report\s*#|Accession|Received|Reported)[\s:]/i;
+
+/**
  * Extracts metadata such as facility and report date from header lines.
  */
 function extractReportMetadata(lines: string[]) {
   let facility = 'Clinical Laboratory Facility';
   let reportDate = new Date().toISOString().split('T')[0];
 
-  for (const line of lines.slice(0, 15)) {
+  for (const line of lines.slice(0, 20)) {
     // Facility detection
     if (/LABORATOR|HOSPITAL|CLINIC|DIAGNOSTIC|HEALTH/i.test(line) && !line.startsWith('=') && !line.startsWith('-')) {
       const cleaned = line.replace(/^[=\-\s*]+|[=\-\s*]+$/g, '').trim();
@@ -44,17 +50,24 @@ function extractReportMetadata(lines: string[]) {
 
 /**
  * Parses an individual report line into structured fields.
+ * Returns null for metadata lines, headers, and non-test lines.
  */
 function parseReportLine(line: string): ExtractedRawResult | null {
   const trimmed = line.trim();
 
-  // Skip headers, horizontal rules, page borders, empty lines
+  // Skip empty lines and horizontal rules
   if (!trimmed || trimmed.startsWith('=') || trimmed.startsWith('-') || trimmed.startsWith('*') || trimmed.startsWith('#')) {
     return null;
   }
 
-  // Skip obvious non-test lines
-  if (/^(TEST NAME|PATIENT|ORDERING|PHYSICIAN|DOB|SPECIMEN|REQUISITION|PANEL:|CLINICAL NOTES|LABORATORY OBSERVATIONS|PATHOLOGIST)/i.test(trimmed)) {
+  // Skip metadata lines FIRST — these must never become lab results
+  // e.g. "Report Date: 2026-03-01", "Patient: John Doe", "Ordering Physician: Dr. Smith"
+  if (METADATA_LINE_REGEX.test(trimmed)) {
+    return null;
+  }
+
+  // Skip obvious non-test lines (section headers, notes, etc.)
+  if (/^(TEST NAME|ORDERING|PHYSICIAN|DOB|SPECIMEN|REQUISITION|PANEL:|CLINICAL NOTES|LABORATORY OBSERVATIONS|PATHOLOGIST)/i.test(trimmed)) {
     return null;
   }
 
@@ -66,7 +79,6 @@ function parseReportLine(line: string): ExtractedRawResult | null {
   // e.g. "Fasting Insulin               14.5     uIU/mL"
   
   // Try Pattern A: TestName ... Number ... Unit ... ReferenceRange
-  // We use regex that looks for a test name, followed by numeric value, unit, and optional reference range
   const tabularRegex = /^([A-Za-z0-9\s,/\-()'.+]+?)\s{2,}([<>]?[0-9.]+)\s+([A-Za-z0-9/%^]+(?:\/[A-Za-z0-9.]+)?)\s*(.*?)$/;
   const tabMatch = trimmed.match(tabularRegex);
 
@@ -86,7 +98,7 @@ function parseReportLine(line: string): ExtractedRawResult | null {
       rawRange = null;
     }
 
-    // Guard against picking up section headers or numbers
+    // Guard against picking up section headers or known metadata keyword names
     if (rawName.length >= 2 && !/^(PANEL|TEST|NOTE|TOTAL)/i.test(rawName)) {
       return {
         testName: rawName,
@@ -101,7 +113,8 @@ function parseReportLine(line: string): ExtractedRawResult | null {
   // Format B: Key-Value format
   // e.g. "Potassium: 3.2 mmol/L (Reference: 3.5 - 5.0)"
   // e.g. "Calcium: 9.3 mg/dL [8.6 - 10.2]"
-  const kvRegex = /^([A-Za-z0-9\s,/\-()'.+]+?):\s*([<>]?[0-9.]+)\s*([A-Za-z0-9/%^]+(?:\/[A-Za-z0-9.]+)?)\s*(?:\((?:Ref|Reference)?\s*:?\s*([^)]+)\)|\[([^\]]+)\])?/i;
+  // NOTE: metadata lines are already filtered above so "Report Date: ..." never reaches here
+  const kvRegex = /^([A-Za-z0-9\s,/\-()'.+]+?):\s*([<>]?[0-9.]+)\s*([A-Za-z0-9/%^]+(?:\/[A-Za-z0-9.]+)?)?\s*(?:\((?:Ref|Reference)?\s*:?\s*([^)]+)\)|\[([^\]]+)\])?/i;
   const kvMatch = trimmed.match(kvRegex);
 
   if (kvMatch) {
@@ -131,7 +144,8 @@ function parseReportLine(line: string): ExtractedRawResult | null {
       const rawUnit = parts[2] || '';
       const rawRange = parts[3] || null;
 
-      if (!isNaN(parseFloat(rawVal))) {
+      // Value must be numeric, and name must not look like a metadata label
+      if (!isNaN(parseFloat(rawVal)) && !METADATA_LINE_REGEX.test(rawName + ':')) {
         return {
           testName: rawName,
           valueStr: rawVal,
@@ -189,11 +203,19 @@ export function parseMedicalReport(
         status: evaluated.status,
         testDate: reportDate,
         sourceSnippet: parsed.rawSnippet.trim(),
-        provenance: 'AI_EXTRACTED',
+        provenance: 'LOCAL_EXTRACTED',   // Honest: deterministic local parser, NOT an AI model
         extractionEngine: LOCAL_ENGINE_NAME,
         confidence,
         confidenceScore,
-        verificationStatus: 'UNREVIEWED'
+        verificationStatus: 'UNREVIEWED',
+        // Phase 2: immutable snapshot — never altered by human edits
+        originalExtracted: {
+          testName: parsed.testName,
+          value: parsed.valueStr,
+          unit: parsed.unitStr,
+          sourceReferenceRange: evaluated.sourceReferenceRange,
+          sourceSnippet: parsed.rawSnippet.trim()
+        }
       };
 
       results.push(resultItem);
@@ -216,6 +238,7 @@ export function parseMedicalReport(
     unparsedLines,
     extractionEngine: LOCAL_ENGINE_NAME,
     processedAt: new Date().toISOString(),
-    isDemoData
+    isDemoData,
+    auditLog: []  // Phase 2: starts empty, populated by verification actions
   };
 }

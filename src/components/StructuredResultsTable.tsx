@@ -8,21 +8,36 @@ import {
   CheckCircle2, 
   ArrowUpRight, 
   ArrowDownRight,
-  HelpCircle,
-  Clock
+  HelpCircle
 } from 'lucide-react';
 import type { LabTestResult, MedicalReport, ReferenceRangeStatus } from '../types';
+import type { EditPayload } from './EditResultModal';
 import { NOT_PROVIDED_MESSAGE } from '../services/referenceRangeEvaluator';
 import { SourceInspectorModal } from './SourceInspectorModal';
+import { VerificationActions } from './VerificationActions';
+import { EditResultModal } from './EditResultModal';
+import { RejectResultModal } from './RejectResultModal';
 
 interface StructuredResultsTableProps {
   report: MedicalReport;
+  onVerify: (resultId: string) => void;
+  onEdit: (resultId: string, edits: EditPayload) => void;
+  onReject: (resultId: string, reason: string) => void;
+  onUndoReject: (resultId: string) => void;
 }
 
-export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ report }) => {
+export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
+  report,
+  onVerify,
+  onEdit,
+  onReject,
+  onUndoReject
+}) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | ReferenceRangeStatus>('ALL');
-  const [selectedResult, setSelectedResult] = useState<LabTestResult | null>(null);
+  const [inspectedResult, setInspectedResult] = useState<LabTestResult | null>(null);
+  const [editingResult, setEditingResult] = useState<LabTestResult | null>(null);
+  const [rejectingResult, setRejectingResult] = useState<LabTestResult | null>(null);
 
   // Filter results
   const filteredResults = report.results.filter(res => {
@@ -36,12 +51,18 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
     return matchesSearch && matchesStatus;
   });
 
-  // Summary counts
+  // Summary counts — only count actual lab results (never metadata)
   const totalCount = report.results.length;
   const normalCount = report.results.filter(r => r.status === 'NORMAL').length;
   const highCount = report.results.filter(r => r.status === 'HIGH').length;
   const lowCount = report.results.filter(r => r.status === 'LOW').length;
   const unprovidedCount = report.results.filter(r => r.status === 'NOT_PROVIDED_IN_SOURCE').length;
+  const verifiedCount = report.results.filter(r =>
+    r.verificationStatus === 'VERIFIED' || r.verificationStatus === 'EDITED'
+  ).length;
+  const rejectedCount = report.results.filter(r => r.verificationStatus === 'REJECTED').length;
+
+  const auditLog = report.auditLog ?? [];
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
@@ -54,7 +75,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
                 Structured Laboratory Findings
               </h2>
               <span className="text-xs px-2.5 py-0.5 rounded-full bg-teal-100 text-teal-800 font-semibold border border-teal-200">
-                {report.results.length} Parameters Extracted
+                {report.results.length} Parameters
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">
@@ -72,9 +93,9 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
         </div>
 
         {/* Clinical Summary Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
+        <div className="grid grid-cols-3 sm:grid-cols-7 gap-2 pt-1">
           <div className="bg-white p-3 rounded-lg border border-slate-200 shadow-2xs">
-            <span className="text-[11px] font-semibold text-slate-500 block">Total Analyzed</span>
+            <span className="text-[11px] font-semibold text-slate-500 block">Total</span>
             <span className="text-xl font-bold text-slate-900">{totalCount}</span>
           </div>
 
@@ -89,7 +110,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
           <div className="bg-amber-50/60 p-3 rounded-lg border border-amber-200 shadow-2xs">
             <span className="text-[11px] font-semibold text-amber-800 flex items-center gap-1">
               <ArrowUpRight className="h-3 w-3 text-amber-600" />
-              <span>High (Elevated)</span>
+              <span>High</span>
             </span>
             <span className="text-xl font-bold text-amber-900">{highCount}</span>
           </div>
@@ -97,7 +118,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
           <div className="bg-blue-50/60 p-3 rounded-lg border border-blue-200 shadow-2xs">
             <span className="text-[11px] font-semibold text-blue-800 flex items-center gap-1">
               <ArrowDownRight className="h-3 w-3 text-blue-600" />
-              <span>Low (Decreased)</span>
+              <span>Low</span>
             </span>
             <span className="text-xl font-bold text-blue-900">{lowCount}</span>
           </div>
@@ -105,10 +126,25 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
           <div className="bg-slate-100/70 p-3 rounded-lg border border-slate-300 shadow-2xs">
             <span className="text-[11px] font-semibold text-slate-700 flex items-center gap-1">
               <HelpCircle className="h-3 w-3 text-slate-500" />
-              <span>No Source Range</span>
+              <span>No Range</span>
             </span>
             <span className="text-xl font-bold text-slate-800">{unprovidedCount}</span>
           </div>
+
+          <div className="bg-teal-50/60 p-3 rounded-lg border border-teal-200 shadow-2xs">
+            <span className="text-[11px] font-semibold text-teal-800 flex items-center gap-1">
+              <ShieldCheck className="h-3 w-3 text-teal-600" />
+              <span>Verified</span>
+            </span>
+            <span className="text-xl font-bold text-teal-900">{verifiedCount}</span>
+          </div>
+
+          {rejectedCount > 0 && (
+            <div className="bg-rose-50/60 p-3 rounded-lg border border-rose-200 shadow-2xs">
+              <span className="text-[11px] font-semibold text-rose-800 block">Rejected</span>
+              <span className="text-xl font-bold text-rose-900">{rejectedCount}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -185,7 +221,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
                 : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'
             }`}
           >
-            No Source Range ({unprovidedCount})
+            No Range ({unprovidedCount})
           </button>
         </div>
       </div>
@@ -203,7 +239,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
               <th className="py-3 px-4">Confidence</th>
               <th className="py-3 px-4">Source Origin</th>
               <th className="py-3 px-4">Verification</th>
-              <th className="py-3 px-4 text-right">Action</th>
+              <th className="py-3 px-4 text-right">Inspect</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -220,17 +256,19 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
                 const isLow = res.status === 'LOW';
                 const isNormal = res.status === 'NORMAL';
                 const isNoRange = res.status === 'NOT_PROVIDED_IN_SOURCE';
+                const isRejected = res.verificationStatus === 'REJECTED';
 
                 return (
                   <tr
                     key={res.id}
-                    onClick={() => setSelectedResult(res)}
-                    className="hover:bg-slate-50 cursor-pointer transition-colors group"
+                    className={`hover:bg-slate-50 transition-colors group ${isRejected ? 'opacity-60' : ''}`}
                   >
                     {/* Test Name */}
                     <td className="py-3 px-4 font-bold text-slate-900">
                       <div className="flex items-center gap-1.5">
-                        <span>{res.testName}</span>
+                        <span className={isRejected ? 'line-through text-slate-400' : ''}>
+                          {res.testName}
+                        </span>
                       </div>
                     </td>
 
@@ -292,7 +330,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
                       </span>
                     </td>
 
-                    {/* Source Origin */}
+                    {/* Source Origin — honest LOCAL_EXTRACTED label */}
                     <td className="py-3 px-4">
                       <div className="flex flex-col">
                         <span className="text-[11px] font-semibold text-slate-700">
@@ -304,20 +342,23 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
                       </div>
                     </td>
 
-                    {/* Verification Status */}
+                    {/* Verification Actions */}
                     <td className="py-3 px-4">
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
-                        <Clock className="h-3 w-3 text-slate-400" />
-                        {res.verificationStatus}
-                      </span>
+                      <VerificationActions
+                        result={res}
+                        onVerify={onVerify}
+                        onEdit={(result) => setEditingResult(result)}
+                        onReject={(result) => setRejectingResult(result)}
+                        onUndoReject={onUndoReject}
+                      />
                     </td>
 
-                    {/* Action */}
+                    {/* Inspect Button */}
                     <td className="py-3 px-4 text-right">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedResult(res);
+                          setInspectedResult(res);
                         }}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 rounded border border-teal-200 transition-colors"
                         title="View exact source snippet & provenance record"
@@ -338,17 +379,38 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({ 
       <div className="p-3 bg-slate-50 border-t border-slate-200 text-xs text-slate-500 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-700">Audit Rule:</span>
-          <span>Click any laboratory parameter row to inspect its exact source snippet and provenance trail.</span>
+          <span>Click Inspect to view the full provenance chain. Use Verify/Edit/Reject for each result.</span>
         </div>
         <div>
           Showing {filteredResults.length} of {report.results.length} parameters
         </div>
       </div>
 
-      {/* Source Inspector Modal */}
+      {/* Source Inspector Modal — shows full provenance chain */}
       <SourceInspectorModal
-        result={selectedResult}
-        onClose={() => setSelectedResult(null)}
+        result={inspectedResult}
+        auditLog={auditLog}
+        onClose={() => setInspectedResult(null)}
+      />
+
+      {/* Edit Result Modal */}
+      <EditResultModal
+        result={editingResult}
+        onSave={(resultId, edits) => {
+          onEdit(resultId, edits);
+          setEditingResult(null);
+        }}
+        onClose={() => setEditingResult(null)}
+      />
+
+      {/* Reject Result Modal */}
+      <RejectResultModal
+        result={rejectingResult}
+        onConfirmReject={(resultId, reason) => {
+          onReject(resultId, reason);
+          setRejectingResult(null);
+        }}
+        onClose={() => setRejectingResult(null)}
       />
     </div>
   );
