@@ -118,7 +118,7 @@ function parseReportLine(line: string): ExtractedRawResult | null {
     }
 
     // Guard against picking up section headers or known metadata keyword names
-    if (rawName.length >= 2 && !/^(PANEL|TEST|NOTE|TOTAL)/i.test(rawName)) {
+    if (rawName.length >= 2 && !/^(PANEL|TEST\s+NAME|NOTE)\b/i.test(rawName) && !/^TOTAL\s*(?:TESTS?|RESULTS?)?\s*[:=0-9]/i.test(rawName)) {
       return {
         testName: rawName,
         valueStr: rawVal,
@@ -173,6 +173,27 @@ function parseReportLine(line: string): ExtractedRawResult | null {
           rawSnippet: line
         };
       }
+    }
+  }
+
+  // Format D: Qualitative test row (e.g. "Qualitative Protein    POSITIVE")
+  const qualRegex = /^([-A-Za-z0-9\s,/\\()'.+]+?)\s{2,}(POSITIVE|NEGATIVE|DETECTED|NOT DETECTED|REACTIVE|NON-REACTIVE|INDETERMINATE|EQUIVOCAL)(?:\s+(.*?))?$/i;
+  const qualMatch = trimmed.match(qualRegex);
+  if (qualMatch) {
+    const rawName = qualMatch[1].trim();
+    const rawVal = qualMatch[2].trim().toUpperCase();
+    let rawRange: string | null = qualMatch[3] ? qualMatch[3].trim() : null;
+    if (rawRange && /^(HIGH|LOW|NORMAL|ABNORMAL|CRITICAL|\*)$/i.test(rawRange)) {
+      rawRange = null;
+    }
+    if (rawName.length >= 2 && !/^(PANEL|TEST\s+NAME|NOTE)\b/i.test(rawName) && !/^TOTAL\s*(?:TESTS?|RESULTS?)?\s*[:=0-9]/i.test(rawName)) {
+      return {
+        testName: rawName,
+        valueStr: rawVal,
+        unitStr: '',
+        refRangeStr: rawRange,
+        rawSnippet: line
+      };
     }
   }
 

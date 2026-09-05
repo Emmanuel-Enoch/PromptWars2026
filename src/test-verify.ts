@@ -2,6 +2,7 @@
 // Covers Phase 1 regression + Phase 2 features
 import { parseMedicalReport, LOCAL_ENGINE_NAME } from './services/deterministicParser';
 import { evaluateReferenceRange, NOT_PROVIDED_MESSAGE } from './services/referenceRangeEvaluator';
+import { compareMedicalReports, normalizeTestKey } from './services/reportComparison';
 import { DEMO_PATIENTS, DEMO_REPORTS } from './data/demoData';
 
 declare const process: any;
@@ -686,6 +687,162 @@ if (egfrWithRangeResult) {
   assert(egfrWithRangeResult.unit === 'mL/min/1.73m²', `17.23: eGFR unit intact with range (got "${egfrWithRangeResult.unit}")`);
   assert(egfrWithRangeResult.sourceReferenceRange === '> 60', `17.24: eGFR source range is > 60 (got ${egfrWithRangeResult.sourceReferenceRange})`);
   assert(egfrWithRangeResult.status === 'NORMAL', `17.25: eGFR status is NORMAL (82 > 60) (got ${egfrWithRangeResult.status})`);
+}
+
+// ============================================================
+// SECTION 18: Phase 3B — Current vs Previous Report Comparison
+// ============================================================
+console.log('\n--- SECTION 18: Phase 3B — Report Comparison ---\n');
+
+const reportTextA = `================================================================================
+PREMIER HEALTH LAB - METABOLIC BASELINE
+Patient: David Miller | DOB: 1965-05-14
+Report Date: 2026-01-15
+================================================================================
+TEST NAME                     RESULT   UNITS      REFERENCE RANGE    FLAGS
+--------------------------------------------------------------------------------
+Glucose, Fasting              128      mg/dL      70 - 99            HIGH
+Creatinine, Serum             1.24     mg/dL      0.60 - 1.20        HIGH
+Potassium                     3.4      mmol/L     3.5 - 5.0          LOW
+BUN                           18       mg/dL      7 - 20             NORMAL
+Total Bilirubin               5.2      mg/dL      0.2 - 1.2          HIGH
+Troponin                      0        ng/mL      < 0.04             NORMAL
+Qualitative Protein           POSITIVE
+================================================================================`;
+
+const reportTextB = `================================================================================
+PREMIER HEALTH LAB - FOLLOW UP PANEL
+Patient: David Miller | DOB: 1965-05-14
+Report Date: 2026-03-15
+================================================================================
+TEST NAME                     RESULT   UNITS      REFERENCE RANGE    FLAGS
+--------------------------------------------------------------------------------
+Glucose, Fasting              142      mg/dL      70 - 99            HIGH
+Creatinine, Serum             1.10     mg/dL      0.60 - 1.20        NORMAL
+Potassium                     3.8      mmol/L     3.6 - 5.2          NORMAL
+Total Bilirubin               0.052    mmol/L     3.4 - 20.5
+Troponin                      0.02     ng/mL      < 0.04             NORMAL
+eGFR                          82       mL/min/1.73m²
+Qualitative Protein           NEGATIVE
+================================================================================`;
+
+const repA = parseMedicalReport(reportTextA, 'pt-comp-01', false, 'Baseline Panel (Jan 2026)');
+const repB = parseMedicalReport(reportTextB, 'pt-comp-01', false, 'Follow-Up Panel (Mar 2026)');
+
+// Save immutable snapshots to verify no mutation occurred
+const repAJsonBefore = JSON.stringify(repA);
+const repBJsonBefore = JSON.stringify(repB);
+
+const comparison = compareMedicalReports(repA, repB);
+
+// 0. Canonical normalization
+assert(normalizeTestKey('Glucose, Fasting') === 'glucose', '18.0: normalizeTestKey canonicalizes clinical test names');
+
+// 1. Matching test comparison
+assert(comparison.matchingCount >= 5, `18.1: Found ${comparison.matchingCount} matching tests between panels`);
+assert(comparison.previousReport.id === repA.id, '18.2: Previous report preserved in summary');
+assert(comparison.currentReport.id === repB.id, '18.3: Current report preserved in summary');
+
+// 2. Positive numerical change (Glucose: 128 -> 142 = +14 mg/dL)
+const compGlucose = comparison.results.find(r => r.normalizedKey === 'glucose');
+assert(Boolean(compGlucose), '18.4: Glucose found in comparison');
+if (compGlucose) {
+  assert(compGlucose.presence === 'BOTH', '18.5: Glucose presence is BOTH');
+  assert(compGlucose.previousValue === '128', '18.6: Previous glucose value is 128');
+  assert(compGlucose.currentValue === '142', '18.7: Current glucose value is 142');
+  assert(compGlucose.absoluteChange === 14, `18.8: Glucose absolute change is 14 (got ${compGlucose.absoluteChange})`);
+  assert(compGlucose.absoluteChangeDisplay === '+14 mg/dL', `18.9: Glucose absolute display is "+14 mg/dL" (got "${compGlucose.absoluteChangeDisplay}")`);
+  
+  // 4 & 5. Percentage change & correct rounding (+10.9%)
+  assert(compGlucose.percentageChange === 10.9, `18.10: Glucose percentage change is 10.9 (got ${compGlucose.percentageChange})`);
+  assert(compGlucose.percentageChangeDisplay === '+10.9%', `18.11: Glucose percentage display is "+10.9%" (got "${compGlucose.percentageChangeDisplay}")`);
+  assert(compGlucose.previousStatus === 'HIGH', '18.12: Previous glucose status is HIGH');
+  assert(compGlucose.currentStatus === 'HIGH', '18.13: Current glucose status is HIGH');
+}
+
+// 3. Negative numerical change (Creatinine: 1.24 -> 1.10 = -0.14 mg/dL, -11.3%)
+const compCreatinine = comparison.results.find(r => r.normalizedKey === 'creatinine');
+assert(Boolean(compCreatinine), '18.14: Creatinine found in comparison');
+if (compCreatinine) {
+  assert(compCreatinine.absoluteChange === -0.14, `18.15: Creatinine absolute change is -0.14 (got ${compCreatinine.absoluteChange})`);
+  assert(compCreatinine.absoluteChangeDisplay === '-0.14 mg/dL', `18.16: Creatinine display is "-0.14 mg/dL" (got "${compCreatinine.absoluteChangeDisplay}")`);
+  assert(compCreatinine.percentageChange === -11.3, `18.17: Creatinine percentage change is -11.3 (got ${compCreatinine.percentageChange})`);
+  assert(compCreatinine.percentageChangeDisplay === '-11.3%', `18.18: Creatinine percentage display is "-11.3%" (got "${compCreatinine.percentageChangeDisplay}")`);
+  assert(compCreatinine.previousStatus === 'HIGH', '18.19: Previous creatinine status is HIGH');
+  assert(compCreatinine.currentStatus === 'NORMAL', '18.20: Current creatinine status is NORMAL');
+}
+
+// 6. Test present only in previous report (BUN)
+const compBun = comparison.results.find(r => r.normalizedKey === 'bun');
+assert(Boolean(compBun), '18.21: BUN found in comparison');
+if (compBun) {
+  assert(compBun.presence === 'ONLY_PREVIOUS', '18.22: BUN presence is ONLY_PREVIOUS');
+  assert(compBun.currentValue === null, '18.23: Current BUN value is null');
+  assert(compBun.absoluteChange === null, '18.24: No numerical change calculated for missing current test');
+  assert(compBun.comparisonNote === 'Only in previous report', '18.25: Notes "Only in previous report"');
+}
+
+// 7. Test present only in current report (eGFR)
+const compEgfr = comparison.results.find(r => r.normalizedKey === 'egfr');
+assert(Boolean(compEgfr), '18.26: eGFR found in comparison');
+if (compEgfr) {
+  assert(compEgfr.presence === 'ONLY_CURRENT', '18.27: eGFR presence is ONLY_CURRENT');
+  assert(compEgfr.previousValue === null, '18.28: Previous eGFR value is null');
+  assert(compEgfr.absoluteChange === null, '18.29: No numerical change calculated for missing previous test');
+  assert(compEgfr.comparisonNote === 'Only in current report', '18.30: Notes "Only in current report"');
+  // 11. Missing reference range remains missing
+  assert(compEgfr.currentRange === NOT_PROVIDED_MESSAGE, '18.31: eGFR current range is "Reference range not provided in source."');
+}
+
+// 10. Non-numeric value (Qualitative Protein)
+const compProtein = comparison.results.find(r => r.normalizedKey.includes('protein'));
+assert(Boolean(compProtein), '18.32: Qualitative protein found in comparison');
+if (compProtein) {
+  assert(compProtein.absoluteChange === null, '18.33: No numerical change for non-numeric values');
+  assert(compProtein.comparisonNote === 'Numerical change not available.', '18.34: Notes "Numerical change not available."');
+}
+
+// 12. Previous and current reference ranges remain independent (Potassium)
+const compPotassium = comparison.results.find(r => r.normalizedKey === 'potassium');
+assert(Boolean(compPotassium), '18.35: Potassium found in comparison');
+if (compPotassium) {
+  assert(compPotassium.previousRange === '3.5 - 5.0', `18.36: Previous potassium range is 3.5 - 5.0 (got ${compPotassium.previousRange})`);
+  assert(compPotassium.currentRange === '3.6 - 5.2', `18.37: Current potassium range is 3.6 - 5.2 (got ${compPotassium.currentRange})`);
+  assert(compPotassium.previousRange !== compPotassium.currentRange, '18.38: Previous and current ranges preserved independently');
+}
+
+// 13. Different units prevent numerical comparison (Total Bilirubin mg/dL vs mmol/L)
+const compBili = comparison.results.find(r => r.normalizedKey === 'bilirubin');
+assert(Boolean(compBili), '18.39: Bilirubin found in comparison');
+if (compBili) {
+  assert(compBili.absoluteChange === null, '18.40: Absolute change is null when units differ');
+  assert(compBili.percentageChange === null, '18.41: Percentage change is null when units differ');
+  assert(compBili.comparisonNote === 'Units differ — numerical change not calculated.', '18.42: Displays "Units differ — numerical change not calculated."');
+}
+
+// 14 & 15. Zero previous value does not cause division by zero, no NaN/Infinity (Troponin: 0 -> 0.02)
+const compTrop = comparison.results.find(r => r.normalizedKey === 'troponin');
+assert(Boolean(compTrop), '18.43: Troponin found in comparison');
+if (compTrop) {
+  assert(compTrop.absoluteChange === 0.02, `18.44: Absolute change is 0.02 (got ${compTrop.absoluteChange})`);
+  assert(compTrop.percentageChange === null, '18.45: Percentage change is null when previous value is 0');
+  assert(compTrop.percentageChangeDisplay === 'Percentage change not available.', '18.46: Displays "Percentage change not available."');
+  assert(!String(compTrop.absoluteChange).includes('NaN'), '18.47: No NaN in absolute change');
+  assert(!String(compTrop.percentageChangeDisplay).includes('Infinity'), '18.48: No Infinity in percentage change display');
+}
+
+// 16. Original structured results are not mutated
+assert(JSON.stringify(repA) === repAJsonBefore, '18.49: Previous MedicalReport was not mutated by comparison');
+assert(JSON.stringify(repB) === repBJsonBefore, '18.50: Current MedicalReport was not mutated by comparison');
+
+// 17 & 18. Comparison does not create fake provenance & points to original evidence
+if (compGlucose) {
+  assert(compGlucose.previousResult !== undefined, '18.51: previousResult preserved for provenance inspection');
+  assert(compGlucose.currentResult !== undefined, '18.52: currentResult preserved for provenance inspection');
+  assert(compGlucose.previousResult?.provenance === 'LOCAL_EXTRACTED', '18.53: previousResult retains honest LOCAL_EXTRACTED provenance');
+  assert(compGlucose.currentResult?.provenance === 'LOCAL_EXTRACTED', '18.54: currentResult retains honest LOCAL_EXTRACTED provenance');
+  assert(reportTextA.includes(compGlucose.previousResult!.sourceSnippet), '18.55: previousResult sourceSnippet comes from report A');
+  assert(reportTextB.includes(compGlucose.currentResult!.sourceSnippet), '18.56: currentResult sourceSnippet comes from report B');
 }
 
 // ============================================================

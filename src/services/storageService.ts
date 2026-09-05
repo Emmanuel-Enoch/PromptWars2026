@@ -5,15 +5,21 @@ import type { PatientProfile, MedicalReport } from '../types';
 
 const STORAGE_KEYS = {
   PATIENT: 'medlens_v1_patient',
-  REPORT: 'medlens_v1_report'
+  REPORT: 'medlens_v1_report',
+  REPORTS: 'medlens_v1_reports'
 };
 
 export interface PersistedState {
   patient: PatientProfile | null;
   report: MedicalReport | null;
+  reports: MedicalReport[];
 }
 
-export function savePersistedState(patient: PatientProfile | null, report: MedicalReport | null): void {
+export function savePersistedState(
+  patient: PatientProfile | null,
+  report: MedicalReport | null,
+  reports?: MedicalReport[]
+): void {
   try {
     if (patient) {
       localStorage.setItem(STORAGE_KEYS.PATIENT, JSON.stringify(patient));
@@ -26,6 +32,12 @@ export function savePersistedState(patient: PatientProfile | null, report: Medic
     } else {
       localStorage.removeItem(STORAGE_KEYS.REPORT);
     }
+
+    if (reports && reports.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.REPORTS, JSON.stringify(reports));
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.REPORTS);
+    }
   } catch (err) {
     console.error('Failed to save MedLens state to localStorage:', err);
   }
@@ -34,6 +46,7 @@ export function savePersistedState(patient: PatientProfile | null, report: Medic
 export function loadPersistedState(): PersistedState {
   let patient: PatientProfile | null = null;
   let report: MedicalReport | null = null;
+  let reports: MedicalReport[] = [];
 
   try {
     const rawPatient = localStorage.getItem(STORAGE_KEYS.PATIENT);
@@ -45,17 +58,25 @@ export function loadPersistedState(): PersistedState {
     if (rawReport) {
       report = JSON.parse(rawReport);
     }
+
+    const rawReports = localStorage.getItem(STORAGE_KEYS.REPORTS);
+    if (rawReports) {
+      reports = JSON.parse(rawReports);
+    } else if (report) {
+      reports = [report];
+    }
   } catch (err) {
     console.error('Failed to load MedLens state from localStorage:', err);
   }
 
-  return { patient, report };
+  return { patient, report, reports };
 }
 
 export function clearPersistedState(): void {
   try {
     localStorage.removeItem(STORAGE_KEYS.PATIENT);
     localStorage.removeItem(STORAGE_KEYS.REPORT);
+    localStorage.removeItem(STORAGE_KEYS.REPORTS);
   } catch (err) {
     console.error('Failed to clear MedLens state:', err);
   }

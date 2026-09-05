@@ -23,6 +23,9 @@ import {
 import { 
   PatientSummary 
 } from './components/PatientSummary';
+import { 
+  ReportComparisonView 
+} from './components/ReportComparisonView';
 import type { 
   PatientProfile, 
   MedicalReport,
@@ -47,7 +50,8 @@ import {
   Sparkles, 
   ArrowRight,
   History,
-  User
+  User,
+  GitCompare
 } from 'lucide-react';
 
 // Default actor for verification actions. In Phase 3 this would come from auth.
@@ -60,11 +64,13 @@ function makeAuditId(): string {
 export const App: React.FC = () => {
   const [patient, setPatient] = useState<PatientProfile | null>(null);
   const [report, setReport] = useState<MedicalReport | null>(null);
+  const [reports, setReports] = useState<MedicalReport[]>([]);
   const [isEditingIntake, setIsEditingIntake] = useState<boolean>(false);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [isInitialized, setIsInitialized] = useState<boolean>(false);
   const [isAuditOpen, setIsAuditOpen] = useState<boolean>(false);
   const [showSummary, setShowSummary] = useState<boolean>(false);
+  const [showComparison, setShowComparison] = useState<boolean>(false);
 
   // Load state from localStorage on initial render
   useEffect(() => {
@@ -75,15 +81,36 @@ export const App: React.FC = () => {
     if (persisted.report) {
       setReport(persisted.report);
     }
+    if (persisted.reports && persisted.reports.length > 0) {
+      setReports(persisted.reports);
+    } else if (persisted.report) {
+      setReports([persisted.report]);
+    }
     setIsInitialized(true);
   }, []);
 
-  // Sync state to localStorage whenever report or patient changes
+  // Sync state to localStorage whenever report, reports, or patient changes
   useEffect(() => {
     if (isInitialized) {
-      savePersistedState(patient, report);
+      savePersistedState(patient, report, reports);
     }
-  }, [patient, report, isInitialized]);
+  }, [patient, report, reports, isInitialized]);
+
+  // Keep active report synchronized in the reports list
+  useEffect(() => {
+    if (report) {
+      setReports(prev => {
+        const index = prev.findIndex(r => r.id === report.id);
+        if (index >= 0) {
+          const copy = [...prev];
+          copy[index] = report;
+          return copy;
+        } else {
+          return [...prev, report];
+        }
+      });
+    }
+  }, [report]);
 
   // Handle patient save
   const handleSavePatient = (newPatient: PatientProfile) => {
@@ -132,9 +159,11 @@ export const App: React.FC = () => {
       clearPersistedState();
       setPatient(null);
       setReport(null);
+      setReports([]);
       setIsEditingIntake(false);
       setIsAuditOpen(false);
       setShowSummary(false);
+      setShowComparison(false);
     }
   };
 
@@ -389,6 +418,18 @@ export const App: React.FC = () => {
                   </span>
                 )}
                 <div className="flex-1" />
+                {/* Compare reports toggle */}
+                <button
+                  onClick={() => setShowComparison(v => !v)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-md border transition-colors ${
+                    showComparison
+                      ? 'bg-teal-700 text-white border-teal-800 shadow-xs'
+                      : 'text-teal-800 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 border-teal-200'
+                  }`}
+                >
+                  <GitCompare className="h-3.5 w-3.5" />
+                  {showComparison ? 'Hide Comparison' : 'Compare Reports'} ({reports.length})
+                </button>
                 {/* Audit trail toggle */}
                 <button
                   onClick={() => setIsAuditOpen(true)}
@@ -407,6 +448,13 @@ export const App: React.FC = () => {
                 </button>
               </div>
 
+              {/* Report Comparison Panel */}
+              {showComparison && (
+                <div className="mb-4">
+                  <ReportComparisonView reports={reports} currentReport={report} />
+                </div>
+              )}
+
               {/* Patient Summary Panel */}
               {showSummary && (
                 <div className="mb-4">
@@ -424,29 +472,45 @@ export const App: React.FC = () => {
               />
             </>
           ) : (
-            <div className="bg-white border border-slate-200 rounded-lg p-10 text-center shadow-xs">
-              <div className="max-w-md mx-auto space-y-3">
-                <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
-                  <ClipboardList className="h-6 w-6" />
+            <>
+              {showComparison && (
+                <div className="mb-4">
+                  <ReportComparisonView reports={reports} currentReport={report} />
                 </div>
-                <h3 className="text-sm font-bold text-slate-800">
-                  No Report Processed Yet
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Select a pre-loaded clinical benchmark scenario above or paste raw laboratory text and click 
-                  <strong> "Extract & Structure Report"</strong> to generate the structured results table.
-                </p>
-                <div className="pt-2">
-                  <button
-                    onClick={handleQuickDemoLoad}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-800 bg-teal-50 px-3 py-1.5 rounded-md border border-teal-200"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" />
-                    <span>Load Sample Report Now</span>
-                  </button>
+              )}
+              <div className="bg-white border border-slate-200 rounded-lg p-10 text-center shadow-xs">
+                <div className="max-w-md mx-auto space-y-3">
+                  <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
+                    <ClipboardList className="h-6 w-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-slate-800">
+                    No Report Processed Yet
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed">
+                    Select a pre-loaded clinical benchmark scenario above or paste raw laboratory text and click 
+                    <strong> "Extract & Structure Report"</strong> to generate the structured results table.
+                  </p>
+                  <div className="pt-2 flex items-center justify-center gap-2 flex-wrap">
+                    <button
+                      onClick={handleQuickDemoLoad}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-800 bg-teal-50 px-3 py-1.5 rounded-md border border-teal-200"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      <span>Load Sample Report Now</span>
+                    </button>
+                    {reports.length >= 2 && (
+                      <button
+                        onClick={() => setShowComparison(v => !v)}
+                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-800 hover:text-teal-900 bg-white px-3 py-1.5 rounded-md border border-slate-300 shadow-2xs"
+                      >
+                        <GitCompare className="h-3.5 w-3.5 text-teal-600" />
+                        <span>Compare Reports ({reports.length})</span>
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
+            </>
           )}
         </section>
 
