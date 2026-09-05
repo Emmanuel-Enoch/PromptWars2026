@@ -2,7 +2,7 @@
 // Shows: SOURCE → EXTRACTION → STRUCTURED RESULT → RANGE EVALUATION → VERIFICATION
 // Original source snippet remains unchanged even after human edits.
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   X,
   ShieldCheck,
@@ -41,25 +41,25 @@ function VerificationBadge({ status }: { status: string }) {
     case 'VERIFIED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-          <CheckCircle2 className="h-3 w-3" /> VERIFIED
+          <CheckCircle2 className="h-3 w-3" aria-hidden="true" /> VERIFIED
         </span>
       );
     case 'EDITED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-violet-100 text-violet-800 border border-violet-300">
-          <Pencil className="h-3 w-3" /> EDITED
+          <Pencil className="h-3 w-3" aria-hidden="true" /> EDITED
         </span>
       );
     case 'REJECTED':
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
-          <XCircle className="h-3 w-3" /> REJECTED
+          <XCircle className="h-3 w-3" aria-hidden="true" /> REJECTED
         </span>
       );
     default:
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-300">
-          <Clock className="h-3 w-3" /> UNREVIEWED
+          <Clock className="h-3 w-3" aria-hidden="true" /> UNREVIEWED
         </span>
       );
   }
@@ -68,7 +68,7 @@ function VerificationBadge({ status }: { status: string }) {
 function StepHeader({ step, label }: { step: number; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-2">
-      <div className="h-5 w-5 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-[10px] shrink-0">
+      <div className="h-5 w-5 rounded-full bg-teal-100 text-teal-800 flex items-center justify-center font-bold text-[10px] shrink-0" aria-hidden="true">
         {step}
       </div>
       <span className="text-[11px] font-bold text-teal-800 uppercase tracking-wider">{label}</span>
@@ -78,7 +78,7 @@ function StepHeader({ step, label }: { step: number; label: string }) {
 
 function ChainArrow() {
   return (
-    <div className="flex justify-center my-2">
+    <div className="flex justify-center my-2" aria-hidden="true">
       <ArrowRight className="h-4 w-4 text-slate-300 rotate-90" />
     </div>
   );
@@ -89,6 +89,61 @@ export const SourceInspectorModal: React.FC<SourceInspectorModalProps> = ({
   auditLog = [],
   onClose
 }) => {
+  // ALL hooks must be called unconditionally — before any conditional return.
+  const modalRef = useRef<HTMLDivElement>(null);
+  const previousActiveElement = useRef<HTMLElement | null>(null);
+
+  // Handle Escape key — only active when modal is open (result is non-null).
+  useEffect(() => {
+    if (!result) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [onClose, result]);
+
+  // Focus management — only active when modal is open (result is non-null).
+  useEffect(() => {
+    if (!result) return;
+    previousActiveElement.current = document.activeElement as HTMLElement;
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+      if (!modalRef.current) return;
+
+      const focusableElements = modalRef.current.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0] as HTMLElement;
+      const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    document.addEventListener('keydown', handleTab);
+
+    return () => {
+      document.removeEventListener('keydown', handleTab);
+      if (previousActiveElement.current) {
+        previousActiveElement.current.focus();
+      }
+    };
+  }, [result]);
+
+  // Guard: render nothing when no result is selected. All hooks are already called above.
   if (!result) return null;
 
   const orig = result.originalExtracted;
@@ -100,16 +155,22 @@ export const SourceInspectorModal: React.FC<SourceInspectorModalProps> = ({
   const sourceSnippetToShow = orig?.sourceSnippet ?? result.sourceSnippet;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="inspector-modal-title"
+      ref={modalRef}
+    >
       <div className="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2.5">
             <div className="h-8 w-8 rounded-md bg-teal-100 flex items-center justify-center text-teal-800">
-              <FileText className="h-4 w-4" />
+              <FileText className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">
+              <h3 id="inspector-modal-title" className="text-sm font-bold text-slate-900">
                 Full Provenance Chain Inspector
               </h3>
               <p className="text-xs text-slate-500">
@@ -120,8 +181,9 @@ export const SourceInspectorModal: React.FC<SourceInspectorModalProps> = ({
           <button
             onClick={onClose}
             className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            aria-label="Close source inspector"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
@@ -325,6 +387,7 @@ export const SourceInspectorModal: React.FC<SourceInspectorModalProps> = ({
           <button
             onClick={onClose}
             className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 text-white rounded-md text-xs font-semibold transition-colors"
+            aria-label="Close source inspector"
           >
             Close Inspector
           </button>

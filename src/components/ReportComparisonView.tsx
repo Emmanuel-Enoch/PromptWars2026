@@ -3,20 +3,24 @@
 // Explicitly disclaims diagnosis, treatment, or clinical significance.
 
 import React, { useState, useEffect } from 'react';
-import { 
-  GitCompare, 
-  ArrowRight, 
-  AlertCircle, 
-  CheckCircle2, 
-  ArrowUpRight, 
-  ArrowDownRight, 
-  HelpCircle, 
+import {
+  GitCompare,
+  ArrowRight,
+  AlertCircle,
+  CheckCircle2,
+  ArrowUpRight,
+  ArrowDownRight,
+  HelpCircle,
   ExternalLink,
   Info,
   ShieldCheck
 } from 'lucide-react';
 import type { MedicalReport, LabTestResult, AuditEntry, ReferenceRangeStatus } from '../types';
-import { compareMedicalReports, type ReportComparisonSummary } from '../services/reportComparison';
+import {
+  compareMedicalReports,
+  type ReportComparisonSummary,
+  type ComparisonChangeLabel
+} from '../services/reportComparison';
 import { SourceInspectorModal } from './SourceInspectorModal';
 
 interface ReportComparisonViewProps {
@@ -40,7 +44,7 @@ export const ReportComparisonView: React.FC<ReportComparisonViewProps> = ({
       // Default: currentReport is current, second most recent is previous
       const currId = currentReport?.id || reports[reports.length - 1].id;
       const prevReport = reports.filter(r => r.id !== currId)[0];
-      
+
       setCurrentReportId(currId);
       if (prevReport) {
         setPreviousReportId(prevReport.id);
@@ -108,6 +112,49 @@ export const ReportComparisonView: React.FC<ReportComparisonViewProps> = ({
     }
   };
 
+  const renderChangeLabelBadge = (label: ComparisonChangeLabel) => {
+    switch (label) {
+      case 'CHANGED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+            CHANGED
+          </span>
+        );
+      case 'UNCHANGED':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-300">
+            UNCHANGED
+          </span>
+        );
+      case 'ONLY IN PREVIOUS':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 border border-slate-200">
+            ONLY IN PREVIOUS
+          </span>
+        );
+      case 'ONLY IN CURRENT':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-teal-50 text-teal-800 border border-teal-200">
+            ONLY IN CURRENT
+          </span>
+        );
+      case 'NUMERICAL CHANGE UNAVAILABLE':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-50 text-slate-500 border border-slate-200">
+            NUMERICAL CHANGE UNAVAILABLE
+          </span>
+        );
+      case 'UNITS DIFFER':
+        return (
+          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold bg-rose-50 text-rose-800 border border-rose-200">
+            UNITS DIFFER
+          </span>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-xs overflow-hidden">
       {/* Header */}
@@ -152,7 +199,7 @@ export const ReportComparisonView: React.FC<ReportComparisonViewProps> = ({
           </span>
           <span className="text-slate-400">→</span>
           <span className="px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 font-medium whitespace-nowrap">
-            4. Clinical Verification
+            4. Human Verification
           </span>
         </div>
 
@@ -289,16 +336,17 @@ export const ReportComparisonView: React.FC<ReportComparisonViewProps> = ({
 
           {/* Comparison Table */}
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+            <table className="w-full text-left border-collapse text-xs min-w-[1000px]">
               <thead>
                 <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
-                  <th className="py-3 px-4">Test</th>
-                  <th className="py-3 px-4">Previous ({comparisonSummary.previousReport.reportDate})</th>
-                  <th className="py-3 px-4">Current ({comparisonSummary.currentReport.reportDate})</th>
-                  <th className="py-3 px-4">Numerical Change</th>
-                  <th className="py-3 px-4">Previous Status</th>
-                  <th className="py-3 px-4">Current Status</th>
-                  <th className="py-3 px-4 text-right">Inspect Source</th>
+                  <th className="py-3 px-4 min-w-[120px]" scope="col">Test</th>
+                  <th className="py-3 px-4 min-w-[120px]" scope="col">Previous ({comparisonSummary.previousReport.reportDate})</th>
+                  <th className="py-3 px-4 min-w-[120px]" scope="col">Current ({comparisonSummary.currentReport.reportDate})</th>
+                  <th className="py-3 px-4 min-w-[100px]" scope="col">Change Label</th>
+                  <th className="py-3 px-4 min-w-[120px]" scope="col">Numerical Change</th>
+                  <th className="py-3 px-4 min-w-[100px]" scope="col">Previous Status</th>
+                  <th className="py-3 px-4 min-w-[100px]" scope="col">Current Status</th>
+                  <th className="py-3 px-4 text-right min-w-[100px]" scope="col">Inspect Source</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -349,6 +397,11 @@ export const ReportComparisonView: React.FC<ReportComparisonViewProps> = ({
                             </div>
                           </div>
                         )}
+                      </td>
+
+                      {/* Change Label (Phase 3C) */}
+                      <td className="py-3 px-4">
+                        {renderChangeLabelBadge(res.changeLabel)}
                       </td>
 
                       {/* Numerical Change */}

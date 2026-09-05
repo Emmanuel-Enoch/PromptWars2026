@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { 
-  Search, 
-  Filter, 
-  ExternalLink, 
-  ShieldCheck, 
-  AlertCircle, 
-  CheckCircle2, 
-  ArrowUpRight, 
+import {
+  Search,
+  Filter,
+  ExternalLink,
+  ShieldCheck,
+  AlertCircle,
+  CheckCircle2,
+  ArrowUpRight,
   ArrowDownRight,
   HelpCircle
 } from 'lucide-react';
@@ -41,7 +41,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
   // Filter results
   const filteredResults = report.results.filter(res => {
-    const matchesSearch = 
+    const matchesSearch =
       res.testName.toLowerCase().includes(searchTerm.toLowerCase()) ||
       res.unit.toLowerCase().includes(searchTerm.toLowerCase()) ||
       res.value.toString().includes(searchTerm);
@@ -86,7 +86,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Facility: <span className="font-semibold text-slate-700">{report.facility}</span> • 
+              Facility: <span className="font-semibold text-slate-700">{report.facility}</span> •
               Report Date: <span className="font-semibold text-slate-700">{report.reportDate}</span>
             </p>
           </div>
@@ -179,25 +179,28 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
       <div className="p-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white">
         {/* Search */}
         <div className="relative flex-1 max-w-sm">
-          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" aria-hidden="true" />
           <input
+            id="table-search"
             type="text"
             placeholder="Search test name or units..."
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             className="w-full pl-9 pr-3 py-1.5 text-xs border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden"
+            aria-label="Search laboratory parameters by test name or units"
           />
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label="Filter by status">
           <span className="text-xs font-semibold text-slate-500 mr-1 flex items-center gap-1">
-            <Filter className="h-3 w-3" />
+            <Filter className="h-3 w-3" aria-hidden="true" />
             <span>Filter:</span>
           </span>
 
           <button
             onClick={() => setStatusFilter('ALL')}
+            aria-pressed={statusFilter === 'ALL'}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               statusFilter === 'ALL'
                 ? 'bg-slate-900 text-white'
@@ -209,6 +212,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
           <button
             onClick={() => setStatusFilter('NORMAL')}
+            aria-pressed={statusFilter === 'NORMAL'}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               statusFilter === 'NORMAL'
                 ? 'bg-emerald-700 text-white'
@@ -220,6 +224,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
           <button
             onClick={() => setStatusFilter('HIGH')}
+            aria-pressed={statusFilter === 'HIGH'}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               statusFilter === 'HIGH'
                 ? 'bg-amber-700 text-white'
@@ -231,6 +236,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
           <button
             onClick={() => setStatusFilter('LOW')}
+            aria-pressed={statusFilter === 'LOW'}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               statusFilter === 'LOW'
                 ? 'bg-blue-700 text-white'
@@ -242,6 +248,7 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
           <button
             onClick={() => setStatusFilter('NOT_PROVIDED_IN_SOURCE')}
+            aria-pressed={statusFilter === 'NOT_PROVIDED_IN_SOURCE'}
             className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors ${
               statusFilter === 'NOT_PROVIDED_IN_SOURCE'
                 ? 'bg-slate-700 text-white'
@@ -255,18 +262,18 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
 
       {/* Structured Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-left border-collapse text-xs">
+        <table className="w-full text-left border-collapse text-xs min-w-[800px]" role="grid" aria-rowcount={filteredResults.length + 1}>
           <thead>
             <tr className="bg-slate-100/80 border-b border-slate-200 text-slate-700 font-semibold uppercase tracking-wider text-[11px]">
-              <th className="py-3 px-4">Test</th>
-              <th className="py-3 px-4">Value</th>
-              <th className="py-3 px-4">Unit</th>
-              <th className="py-3 px-4">Reference Range</th>
-              <th className="py-3 px-4">Status</th>
-              <th className="py-3 px-4">Confidence</th>
-              <th className="py-3 px-4">Source Origin</th>
-              <th className="py-3 px-4">Verification</th>
-              <th className="py-3 px-4 text-right">Inspect</th>
+              <th className="py-3 px-4 min-w-[150px]" scope="col">Test</th>
+              <th className="py-3 px-4 min-w-[80px]" scope="col">Value</th>
+              <th className="py-3 px-4 min-w-[80px]" scope="col">Unit</th>
+              <th className="py-3 px-4 min-w-[120px]" scope="col">Reference Range</th>
+              <th className="py-3 px-4 min-w-[100px]" scope="col">Status</th>
+              <th className="py-3 px-4 min-w-[100px]" scope="col">Confidence</th>
+              <th className="py-3 px-4 min-w-[120px]" scope="col">Source Origin</th>
+              <th className="py-3 px-4 min-w-[140px]" scope="col">Verification</th>
+              <th className="py-3 px-4 text-right min-w-[80px]" scope="col">Inspect</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -388,9 +395,9 @@ export const StructuredResultsTable: React.FC<StructuredResultsTableProps> = ({
                           setInspectedResult(res);
                         }}
                         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-teal-700 hover:text-teal-900 bg-teal-50 hover:bg-teal-100 rounded border border-teal-200 transition-colors"
-                        title="View exact source snippet & provenance record"
+                        aria-label={`Inspect source for ${res.testName}`}
                       >
-                        <ExternalLink className="h-3 w-3" />
+                        <ExternalLink className="h-3 w-3" aria-hidden="true" />
                         <span>Inspect</span>
                       </button>
                     </td>

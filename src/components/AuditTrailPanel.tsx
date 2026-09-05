@@ -94,8 +94,9 @@ export const AuditTrailPanel: React.FC<AuditTrailPanelProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            aria-label="Close audit trail panel"
           >
-            <X className="h-5 w-5" />
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 

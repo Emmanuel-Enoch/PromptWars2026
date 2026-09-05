@@ -752,7 +752,7 @@ if (compGlucose) {
   assert(compGlucose.currentValue === '142', '18.7: Current glucose value is 142');
   assert(compGlucose.absoluteChange === 14, `18.8: Glucose absolute change is 14 (got ${compGlucose.absoluteChange})`);
   assert(compGlucose.absoluteChangeDisplay === '+14 mg/dL', `18.9: Glucose absolute display is "+14 mg/dL" (got "${compGlucose.absoluteChangeDisplay}")`);
-  
+
   // 4 & 5. Percentage change & correct rounding (+10.9%)
   assert(compGlucose.percentageChange === 10.9, `18.10: Glucose percentage change is 10.9 (got ${compGlucose.percentageChange})`);
   assert(compGlucose.percentageChangeDisplay === '+10.9%', `18.11: Glucose percentage display is "+10.9%" (got "${compGlucose.percentageChangeDisplay}")`);

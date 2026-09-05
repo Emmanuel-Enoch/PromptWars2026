@@ -27,12 +27,12 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="text-xl font-bold tracking-tight text-slate-900">
                   Med<span className="text-teal-700">Lens</span>
                 </span>
-                <span className="text-xs font-semibold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
-                  Clinical Intelligence
+                <span className="text-[11px] font-semibold uppercase px-2 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200">
+                  Clinical Evidence Intelligence
                 </span>
               </div>
               <p className="text-xs text-slate-500 hidden sm:block">
-                Structured clinical information intake & report extraction engine
+                See the evidence behind every finding. Verify before you trust it.
               </p>
             </div>
           </div>

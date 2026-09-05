@@ -58,6 +58,13 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
     e.preventDefault();
     if (!name.trim()) return;
 
+    // Validate age
+    const ageNum = age === '' ? 45 : Number(age);
+    if (ageNum < 0 || ageNum > 130) {
+      alert('Please enter a valid age between 0 and 130');
+      return;
+    }
+
     // Parse symptoms
     const parsedSymptoms = symptoms
       .split(',')
@@ -95,7 +102,7 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
     const patientProfile: PatientProfile = {
       id: initialData?.id || `pt-${Date.now().toString(36)}`,
       name: name.trim(),
-      age: age === '' ? 45 : Number(age),
+      age: ageNum,
       sex,
       symptoms: parsedSymptoms,
       existingConditions: parsedConditions,
@@ -127,14 +134,16 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
             type="button"
             onClick={() => handleLoadDemo(0)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-teal-800 bg-teal-50 hover:bg-teal-100 border border-teal-200 rounded-md transition-colors"
+            aria-label="Load demo patient Elena Rostova"
           >
-            <Sparkles className="h-3.5 w-3.5 text-teal-600" />
+            <Sparkles className="h-3.5 w-3.5 text-teal-600" aria-hidden="true" />
             <span>Load Demo Patient (Elena Rostova, 58F)</span>
           </button>
           <button
             type="button"
             onClick={() => handleLoadDemo(1)}
             className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-300 rounded-md transition-colors"
+            aria-label="Load demo patient David Chen"
           >
             <span>Load Demo (David Chen, 42M)</span>
           </button>
@@ -146,10 +155,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
         {/* Core Demographics */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="md:col-span-1">
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-name" className="block text-xs font-semibold text-slate-800 mb-1">
               Patient Full Name <span className="text-rose-600">*</span>
             </label>
             <input
+              id="patient-name"
               type="text"
               required
               value={name}
@@ -160,10 +170,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-age" className="block text-xs font-semibold text-slate-800 mb-1">
               Age <span className="text-rose-600">*</span>
             </label>
             <input
+              id="patient-age"
               type="number"
               min="0"
               max="130"
@@ -172,14 +183,17 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
               onChange={e => setAge(e.target.value === '' ? '' : parseInt(e.target.value, 10))}
               placeholder="e.g. 58"
               className="w-full text-sm px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden"
+              aria-describedby="age-help"
             />
+            <span id="age-help" className="text-[11px] text-slate-500">Valid range: 0-130 years</span>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-sex" className="block text-xs font-semibold text-slate-800 mb-1">
               Biological Sex <span className="text-rose-600">*</span>
             </label>
             <select
+              id="patient-sex"
               value={sex}
               onChange={e => setSex(e.target.value as Sex)}
               className="w-full text-sm px-3 py-2 border border-slate-300 rounded-md focus:ring-2 focus:ring-teal-500 focus:border-teal-500 outline-hidden bg-white"
@@ -195,10 +209,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
         {/* Symptoms & Conditions */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-symptoms" className="block text-xs font-semibold text-slate-800 mb-1">
               Current Symptoms <span className="text-slate-400 font-normal">(comma-separated)</span>
             </label>
             <input
+              id="patient-symptoms"
               type="text"
               value={symptoms}
               onChange={e => setSymptoms(e.target.value)}
@@ -208,10 +223,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-conditions" className="block text-xs font-semibold text-slate-800 mb-1">
               Existing Conditions / Diagnoses <span className="text-slate-400 font-normal">(comma-separated)</span>
             </label>
             <input
+              id="patient-conditions"
               type="text"
               value={conditions}
               onChange={e => setConditions(e.target.value)}
@@ -224,10 +240,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
         {/* Allergies & Medications */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-allergies" className="block text-xs font-semibold text-slate-800 mb-1">
               Known Allergies & Reactions <span className="text-slate-400 font-normal">(e.g. Penicillin (Hives), Sulfa)</span>
             </label>
             <input
+              id="patient-allergies"
               type="text"
               value={allergies}
               onChange={e => setAllergies(e.target.value)}
@@ -237,10 +254,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-800 mb-1">
+            <label htmlFor="patient-medications" className="block text-xs font-semibold text-slate-800 mb-1">
               Current Medications <span className="text-slate-400 font-normal">(one per line or comma-separated)</span>
             </label>
             <textarea
+              id="patient-medications"
               rows={2}
               value={medications}
               onChange={e => setMedications(e.target.value)}
@@ -252,10 +270,11 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
 
         {/* Other Clinical Notes */}
         <div>
-          <label className="block text-xs font-semibold text-slate-800 mb-1">
+          <label htmlFor="patient-notes" className="block text-xs font-semibold text-slate-800 mb-1">
             Other Relevant Clinical Information / Intake Notes
           </label>
           <textarea
+            id="patient-notes"
             rows={2}
             value={notes}
             onChange={e => setNotes(e.target.value)}
@@ -268,7 +287,7 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
         <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 p-2.5 rounded-md border border-slate-200">
           <ShieldAlert className="h-4 w-4 text-slate-400 shrink-0" />
           <span>
-            Intake information is tagged with origin: <strong className="text-slate-800 font-semibold">USER_PROVIDED</strong>. 
+            Intake information is tagged with origin: <strong className="text-slate-800 font-semibold">USER_PROVIDED</strong>.
             All clinical data entered here is strictly attributed to the intake respondent.
           </span>
         </div>
@@ -279,8 +298,9 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
             type="button"
             onClick={handleClear}
             className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-slate-600 hover:text-rose-700 bg-white hover:bg-rose-50 border border-slate-200 hover:border-rose-200 rounded-md transition-colors"
+            aria-label="Clear all form fields"
           >
-            <Trash2 className="h-3.5 w-3.5" />
+            <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
             <span>Clear Form</span>
           </button>
 
@@ -298,7 +318,7 @@ export const PatientIntakeForm: React.FC<PatientIntakeFormProps> = ({
               type="submit"
               className="inline-flex items-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-teal-700 hover:bg-teal-800 rounded-md shadow-xs transition-colors focus:ring-2 focus:ring-teal-500"
             >
-              <Check className="h-4 w-4" />
+              <Check className="h-4 w-4" aria-hidden="true" />
               <span>Save Patient Profile</span>
             </button>
           </div>

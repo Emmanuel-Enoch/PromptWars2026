@@ -13,10 +13,19 @@ import { NOT_PROVIDED_MESSAGE } from './referenceRangeEvaluator';
 
 export type ComparisonPresence = 'BOTH' | 'ONLY_PREVIOUS' | 'ONLY_CURRENT';
 
+export type ComparisonChangeLabel =
+  | 'CHANGED'
+  | 'UNCHANGED'
+  | 'ONLY IN PREVIOUS'
+  | 'ONLY IN CURRENT'
+  | 'NUMERICAL CHANGE UNAVAILABLE'
+  | 'UNITS DIFFER';
+
 export interface ComparedTestResult {
   normalizedKey: string;
   testName: string;
   presence: ComparisonPresence;
+  changeLabel: ComparisonChangeLabel;
 
   // Previous
   previousValue: string | null;
@@ -163,10 +172,17 @@ export function compareMedicalReports(
       const isPrevNumeric = prevNum !== null && !isNaN(prevNum);
       const isCurrNumeric = currNum !== null && !isNaN(currNum);
 
+      let changeLabel: ComparisonChangeLabel;
       if (!isPrevNumeric || !isCurrNumeric) {
         comparisonNote = 'Numerical change not available.';
+        if (prev.value && curr.value && prev.value.trim().toLowerCase() === curr.value.trim().toLowerCase()) {
+          changeLabel = 'UNCHANGED';
+        } else {
+          changeLabel = 'NUMERICAL CHANGE UNAVAILABLE';
+        }
       } else if (!unitsMatch) {
         comparisonNote = 'Units differ — numerical change not calculated.';
+        changeLabel = 'UNITS DIFFER';
       } else {
         // Units match and both are numeric
         const unit = currUnitClean || prevUnitClean;
@@ -174,6 +190,8 @@ export function compareMedicalReports(
         absoluteChange = diff;
         const absSign = diff > 0 ? '+' : '';
         absoluteChangeDisplay = `${absSign}${diff} ${unit}`.trim();
+
+        changeLabel = diff === 0 ? 'UNCHANGED' : 'CHANGED';
 
         // Percentage change: ((curr - prev) / prev) * 100
         if (prevNum === 0) {
@@ -192,6 +210,7 @@ export function compareMedicalReports(
         normalizedKey: key,
         testName,
         presence: 'BOTH',
+        changeLabel,
         previousValue: prev.value,
         previousNumeric: prev.numericValue,
         previousUnit: prev.unit,
@@ -218,6 +237,7 @@ export function compareMedicalReports(
         normalizedKey: key,
         testName: curr.testName,
         presence: 'ONLY_CURRENT',
+        changeLabel: 'ONLY IN CURRENT',
         previousValue: null,
         previousNumeric: null,
         previousUnit: null,
@@ -243,6 +263,7 @@ export function compareMedicalReports(
         normalizedKey: key,
         testName: prev.testName,
         presence: 'ONLY_PREVIOUS',
+        changeLabel: 'ONLY IN PREVIOUS',
         previousValue: prev.value,
         previousNumeric: prev.numericValue,
         previousUnit: prev.unit,

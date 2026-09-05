@@ -31,7 +31,7 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
 
     // Verify it's text-based
     if (!file.name.match(/\.(txt|csv|log|dat|text)$/i) && file.type && !file.type.includes('text')) {
-      setErrorMessage('Please upload a plain text lab report (.txt, .log, or .csv).');
+      setErrorMessage('Unsupported file type. Please upload a plain text lab report (.txt, .log, or .csv).');
       return;
     }
 
@@ -46,10 +46,12 @@ export const ReportIngestion: React.FC<ReportIngestionProps> = ({
           setReportTitle(cleanName);
         }
         setErrorMessage(null);
+      } else {
+        setErrorMessage('The uploaded file appears to be empty. Please check the file and try again.');
       }
     };
     reader.onerror = () => {
-      setErrorMessage('Failed to read the uploaded file.');
+      setErrorMessage('Failed to read the uploaded file. The file may be corrupted or in an unsupported format.');
     };
     reader.readAsText(file);
   };

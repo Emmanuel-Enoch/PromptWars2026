@@ -84,7 +84,7 @@ function parseReportLine(line: string): ExtractedRawResult | null {
   // e.g. "eGFR (Estimated GFR)          54       mL/min     [None provided by ordering lab]"
   // e.g. "eGFR                          82       mL/min/1.73m²"
   // e.g. "Fasting Insulin               14.5     uIU/mL"
-  
+
   // Unit pattern: accommodates compound units with embedded numbers/decimals/superscripts (e.g. mL/min/1.73m², x10^3/uL)
   const unitPattern = '([A-Za-z0-9/%^*.²³µμ\\-]+(?:\\s+m[²2])?)';
 
@@ -226,12 +226,18 @@ export function parseMedicalReport(
         parsed.refRangeStr
       );
 
-      // Confidence computation:
-      // High if test name, numeric value, unit, and valid explicit range parsed
-      // Medium if test name & value parsed, but unit or range missing/unstructured
-      const hasExplicitValidRange = evaluated.rangeProvided && evaluated.status !== 'NOT_PROVIDED_IN_SOURCE';
-      const confidence = hasExplicitValidRange ? 'HIGH' : 'MEDIUM';
-      const confidenceScore = hasExplicitValidRange ? 0.95 : 0.82;
+      // Extraction confidence = parser field certainty only.
+      // A documented reference range is independent completeness, not proof of extraction quality.
+      const hasExtractedName = parsed.testName.trim().length > 0;
+      const hasExtractedValue = parsed.valueStr.trim().length > 0;
+      const hasExtractedUnit = parsed.unitStr.trim().length > 0;
+      const hasNumericValue = !isNaN(numericVal);
+      const fieldsParsedWithCertainty =
+        hasExtractedName &&
+        hasExtractedValue &&
+        (hasExtractedUnit || !hasNumericValue);
+      const confidence = fieldsParsedWithCertainty ? 'HIGH' : 'MEDIUM';
+      const confidenceScore = fieldsParsedWithCertainty ? 0.95 : 0.82;
 
       const resultItem: LabTestResult = {
         id: `res-${Date.now()}-${results.length + 1}`,

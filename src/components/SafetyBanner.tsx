@@ -8,7 +8,7 @@ export const SafetyBanner: React.FC = () => {
         <AlertTriangle className="h-4 w-4 text-amber-700 shrink-0 mt-0.5" />
         <div className="leading-relaxed">
           <strong className="font-semibold text-amber-950">CLINICAL SAFETY NOTICE: </strong>
-          MedLens is a structured clinical information intelligence aid. It does <strong>NOT</strong> diagnose medical conditions, prescribe treatments, or recommend dosage adjustments. 
+          MedLens is a structured clinical information intelligence aid. It does <strong>NOT</strong> diagnose medical conditions, prescribe treatments, or recommend dosage adjustments.
           Reference ranges and test statuses are evaluated <strong>strictly from source report documentation</strong>. If a reference range is absent from the source, no reference range is presumed or invented.
         </div>
       </div>

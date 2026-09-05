@@ -1,53 +1,60 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Header 
+import {
+  Header
 } from './components/Header';
-import { 
-  SafetyBanner 
+import {
+  SafetyBanner
 } from './components/SafetyBanner';
-import { 
-  PatientBanner 
+import {
+  PatientBanner
 } from './components/PatientBanner';
-import { 
-  PatientIntakeForm 
+import {
+  PatientIntakeForm
 } from './components/PatientIntakeForm';
-import { 
-  ReportIngestion 
+import {
+  ReportIngestion
 } from './components/ReportIngestion';
-import { 
-  StructuredResultsTable 
+import {
+  StructuredResultsTable
 } from './components/StructuredResultsTable';
-import { 
-  AuditTrailPanel 
+import {
+  AuditTrailPanel
 } from './components/AuditTrailPanel';
-import { 
-  PatientSummary 
+import {
+  PatientSummary
 } from './components/PatientSummary';
-import { 
-  ReportComparisonView 
+import {
+  ReportComparisonView
 } from './components/ReportComparisonView';
-import type { 
-  PatientProfile, 
+import {
+  EvidenceIntelligencePanel
+} from './components/EvidenceIntelligencePanel';
+import {
+  SourceInspectorModal
+} from './components/SourceInspectorModal';
+import type {
+  PatientProfile,
   MedicalReport,
+  LabTestResult,
   AuditEntry
 } from './types';
 import type { EditPayload } from './components/EditResultModal';
-import { 
-  parseMedicalReport 
+import {
+  parseMedicalReport
 } from './services/deterministicParser';
-import { 
-  savePersistedState, 
-  loadPersistedState, 
-  clearPersistedState 
+import {
+  savePersistedState,
+  loadPersistedState,
+  clearPersistedState
 } from './services/storageService';
-import { 
-  DEMO_PATIENTS, 
-  DEMO_REPORTS 
+import {
+  DEMO_PATIENTS,
+  DEMO_REPORTS
 } from './data/demoData';
-import { 
-  ClipboardList, 
-  FileCheck2, 
-  Sparkles, 
+import {
+  ClipboardList,
+  FileCheck2,
+  Sparkles,
   ArrowRight,
   History,
   User,
@@ -71,6 +78,7 @@ export const App: React.FC = () => {
   const [isAuditOpen, setIsAuditOpen] = useState<boolean>(false);
   const [showSummary, setShowSummary] = useState<boolean>(false);
   const [showComparison, setShowComparison] = useState<boolean>(false);
+  const [inspectedFinding, setInspectedFinding] = useState<LabTestResult | null>(null);
 
   // Load state from localStorage on initial render
   useEffect(() => {
@@ -131,6 +139,7 @@ export const App: React.FC = () => {
         setReport(parsedReport);
       } catch (err) {
         console.error('Report parsing error:', err);
+        alert('Failed to process the report. Please check the format and try again.');
       } finally {
         setIsProcessing(false);
       }
@@ -339,7 +348,7 @@ export const App: React.FC = () => {
 
       {/* Main Workspace Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
-        
+
         {/* Quick Demo Hero Bar (Shown when nothing is loaded yet) */}
         {!patient && !report && (
           <div className="bg-gradient-to-r from-teal-900 via-slate-900 to-slate-800 rounded-xl p-6 text-white shadow-md">
@@ -352,7 +361,7 @@ export const App: React.FC = () => {
                 Clinical Intelligence & Structured Extraction
               </h1>
               <p className="text-slate-300 text-xs sm:text-sm leading-relaxed">
-                MedLens ingests unstructured clinical reports and standardizes them into structured, verifiable laboratory tables. 
+                MedLens ingests unstructured clinical reports and standardizes them into structured, verifiable laboratory tables.
                 Reference ranges are evaluated <strong>strictly from source text</strong> with zero hallucination.
                 All results are human-verifiable with a complete audit trail.
               </p>
@@ -462,6 +471,12 @@ export const App: React.FC = () => {
                 </div>
               )}
 
+              <EvidenceIntelligencePanel
+                report={report}
+                onInspectFinding={setInspectedFinding}
+                onVerifyFinding={(result) => handleVerify(result.id)}
+              />
+
               {/* Structured Results Table with Phase 2 verification wiring */}
               <StructuredResultsTable
                 report={report}
@@ -487,7 +502,7 @@ export const App: React.FC = () => {
                     No Report Processed Yet
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    Select a pre-loaded clinical benchmark scenario above or paste raw laboratory text and click 
+                    Select a pre-loaded clinical benchmark scenario above or paste raw laboratory text and click
                     <strong> "Extract & Structure Report"</strong> to generate the structured results table.
                   </p>
                   <div className="pt-2 flex items-center justify-center gap-2 flex-wrap">
@@ -521,6 +536,12 @@ export const App: React.FC = () => {
         auditLog={auditLog}
         isOpen={isAuditOpen}
         onClose={() => setIsAuditOpen(false)}
+      />
+
+      <SourceInspectorModal
+        result={inspectedFinding}
+        auditLog={auditLog}
+        onClose={() => setInspectedFinding(null)}
       />
 
       {/* Footer */}

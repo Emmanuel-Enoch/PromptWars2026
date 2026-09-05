@@ -108,7 +108,7 @@ Hemoglobin A1c                8.1      %          < 5.7
 Cystatin C                    1.28     mg/L       0.53 - 0.95
 eGFR (Estimated GFR)          54       mL/min     [None provided by ordering lab]
 Uric Acid                     6.8      mg/dL      2.7 - 7.3
-Fasting Insulin               14.5     uIU/mL     
+Fasting Insulin               14.5     uIU/mL
 Serum Magnesium               2.1      mg/dL      1.7 - 2.4
 Urine Albumin/Creatinine      45       mg/g       < 30
 ================================================================================

@@ -39,6 +39,18 @@ export function savePersistedState(
       localStorage.removeItem(STORAGE_KEYS.REPORTS);
     }
   } catch (err) {
+    // Handle specific localStorage errors
+    if (err instanceof Error) {
+      if (err.name === 'QuotaExceededError' || err.message.includes('quota')) {
+        console.warn('LocalStorage quota exceeded - data was not persisted but application state is preserved');
+        // Don't crash the app, just warn
+        return;
+      }
+      if (err.message.includes('security') || err.message.includes('access')) {
+        console.warn('LocalStorage access denied - data was not persisted but application state is preserved');
+        return;
+      }
+    }
     console.error('Failed to save MedLens state to localStorage:', err);
   }
 }
